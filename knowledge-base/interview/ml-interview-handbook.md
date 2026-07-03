@@ -149,12 +149,19 @@ model.add(Dropout(0.5))
 избежать переобучения.
 
 ### 1.13 Приведите пример transfer learning.
-Использование предобученной VGG16 (на ImageNet) как экстрактора признаков для
-своей задачи классификации изображений.
+Заморозить предобученный backbone (ImageNet) и обучить только «голову» классификатора
+на своих данных — типичный паттерн в CV и NLP.
 
 ```python
-from tensorflow.keras.applications import VGG16
-model = VGG16(weights="imagenet", include_top=False)
+# torchvision / PyTorch (2025–2026)
+import torch
+from torchvision import models
+
+backbone = models.resnet18(weights=models.ResNet18_Weights.DEFAULT)
+for p in backbone.parameters():
+    p.requires_grad = False
+backbone.fc = torch.nn.Linear(backbone.fc.in_features, num_classes)
+# Дообучаем только fc (или размораживаем последние слои — fine-tuning)
 ```
 
 ### 1.14 Что такое автоэнкодер?
@@ -1051,6 +1058,38 @@ Bidirectional Encoder Representations from Transformers — предобучен
 (padding-токены или будущие токены в авторегрессии) — модель не «жульничает»,
 заглядывая вперёд.
 
+### 9.8 Что такое LLM и чем отличается от BERT?
+**LLM (Large Language Model)** — крупная авторегрессионная модель (GPT, Llama,
+Mistral), обученная предсказывать следующий токен. **BERT** — encoder-only,
+двунаправленный контекст; лучше для классификации/NER, хуже для длинной генерации.
+
+### 9.9 Что такое RAG (Retrieval-Augmented Generation)?
+Перед генерацией ответа модель получает релевантные фрагменты из базы знаний
+(векторный поиск по эмбеддингам). Снижает галлюцинации, актуализирует знания
+без полного переобучения.
+
+### 9.10 Как оценивают качество LLM на собеседовании?
+**Perplexity** (языковое моделирование), **BLEU/ROUGE** (суммаризация/перевод),
+human evaluation, task-specific benchmarks (MMLU, GSM8K). В проде — A/B на
+бизнес-метриках (конверсия, время ответа, CSAT).
+
+### 9.11 Что такое LoRA / QLoRA?
+**Low-Rank Adaptation** — дообучение маленьких адаптеров вместо всех весов;
+**QLoRA** добавляет квантизацию базовой модели. Экономит GPU-память при fine-tuning.
+
+### 9.12 LightGBM и CatBoost — когда предпочесть XGBoost?
+**LightGBM** — скорость и большие таблицы; **CatBoost** — много категориальных
+признаков без ручного encoding; **XGBoost** — золотой стандарт соревнований и
+стабильная экосистема.
+
+```python
+from lightgbm import LGBMClassifier
+from catboost import CatBoostClassifier
+
+lgbm = LGBMClassifier(n_estimators=300)
+cat = CatBoostClassifier(iterations=300, cat_features=["region"], verbose=0)
+```
+
 ---
 
 ## 10. Обучение с подкреплением
@@ -1250,3 +1289,4 @@ $$\text{output} = F(x) + x$$
 | Дата | Изменение | Источник |
 |------|-----------|----------|
 | 2026-07-03 | Импорт и полный перевод справочника (200+ вопросов) на русский | Lamhot Siagian, ML Interview Handbook (PDF) |
+| 2026-07-03 | Актуализация: ResNet transfer learning, LLM/RAG/LoRA, LightGBM/CatBoost | Редакция KB |

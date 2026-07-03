@@ -11,7 +11,7 @@ status: "ready"
 
 # Вводные — Основы Data Science
 
-> `#DataScience` `#Analytics` `#CRISP-DM`
+> `#DataScience` `#Analytics` `#CRISP-DM` `#MLOps`
 >
 > Базовые понятия и методология, с которых начинается любой проект по анализу данных.
 
@@ -53,6 +53,34 @@ CRISP-DM (Cross-Industry Standard Process for Data Mining) — итератив�
 - наглядное представление в виде графиков и таблиц;
 - описание данных статистическими показателями (мерами) — среднее, медиана, мода, дисперсия и т.д.
 
+### CRISP-DM и современный ML-цикл (2025–2026)
+
+CRISP-DM остаётся полезной **концептуальной** картой, но в продакшене к ней
+добавляют инженерные практики:
+
+| Фаза CRISP-DM | Современное дополнение |
+|---|---|
+| Business Understanding | метрики продукта, compliance (GDPR), Responsible AI |
+| Data Understanding | DuckDB/Polars для профилирования, data contracts |
+| Data Preparation | dbt/Airflow, feature store, версионирование данных (DVC) |
+| Modeling | experiment tracking (MLflow, W&B), reproducible notebooks |
+| Evaluation | offline + online A/B, fairness, explainability (SHAP) |
+| Deployment | CI/CD моделей, мониторинг дрейфа, переобучение по расписанию |
+
+> Альтернативные методологии: **OSEMN** (Obtain → Scrub → Explore → Model → iNterpret),
+> **TDSP** (Microsoft Team Data Science Process), **CRISP-ML(D)** — расширение
+> CRISP-DM для ML с акцентом на мониторинг и MLOps.
+
+```python
+# Минимальный «скелет» проекта (не привязан к фреймворку)
+# 1. business_metric = "retention_day_7"
+# 2. eda_profile(df)          # пропуски, типы, дубликаты
+# 3. features = build_features(df)
+# 4. model = train_with_cv(features, target)
+# 5. evaluate_on_holdout(model, test)
+# 6. register_and_deploy(model) # MLflow + FastAPI / batch job
+```
+
 ## Лучшие практики и подводные камни
 
 - ✅ Начинайте с **Business Understanding** — без чёткой цели анализ бесполезен.
@@ -78,3 +106,4 @@ CRISP-DM (Cross-Industry Standard Process for Data Mining) — итератив�
 | Дата | Изменение | Источник |
 |------|-----------|----------|
 | 2026-07-03 | Первичный импорт раздела Вводные | [Notion: Вводные](https://peat-possum-c31.notion.site/1d17ef40048944a9b40f4c92ea0715f3) |
+| 2026-07-03 | Актуализация: CRISP-DM + MLOps-цикл, Responsible AI, OSEMN/TDSP | Редакция KB |

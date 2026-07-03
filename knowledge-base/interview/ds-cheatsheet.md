@@ -531,7 +531,7 @@ $$\text{Теорема Байеса:} \quad P(c_i \mid a) = \frac{P(a \mid c_i)\
 
 ## Статистика
 
-- **p-value** — вероятность, что эффект случаен. Если < уровня значимости $\alpha$ (или тест-статистика > критического значения) — отвергаем нулевую гипотезу.
+- **p-value** — при истинной H₀, вероятность получить результат не менее экстремальный, чем наблюдаемый. Если $p < \alpha$ — отвергаем H₀.
 - **Ошибка I рода (ложноположительная, $\alpha$)** — отвергли верную нулевую.
 - **Ошибка II рода (ложноотрицательная, $\beta$)** — не отвергли ложную нулевую.
   Уменьшение ошибки I рода увеличивает ошибку II рода.
@@ -599,6 +599,60 @@ $$\text{Теорема Байеса:} \quad P(c_i \mid a) = \frac{P(a \mid c_i)\
 
 ---
 
+## Актуализация 2026 — что добавить к шпаргалке 2021
+
+> Дополнение к оригиналу Aaron Wang (июнь 2021). На собеседованиях 2025–2026
+> часто спрашивают следующее.
+
+### Градиентный бустинг (LightGBM, CatBoost, XGBoost)
+
+| Библиотека | Особенность |
+|---|---|
+| **XGBoost** | универсальный GBDT, регуляризация, GPU |
+| **LightGBM** | leaf-wise рост, быстрый на больших таблицах |
+| **CatBoost** | нативная работа с категориями, ordered boosting |
+
+```python
+from lightgbm import LGBMClassifier
+from catboost import CatBoostClassifier
+
+lgbm = LGBMClassifier(n_estimators=500, learning_rate=0.05)
+cat = CatBoostClassifier(iterations=500, verbose=0)
+```
+
+### LLM, RAG и эмбеддинги (интервью DS/ML)
+
+- **Transformer** — self-attention, encoder-only (BERT), decoder-only (GPT), encoder-decoder (T5).
+- **Fine-tuning vs RAG:** дообучение весов vs поиск по базе знаний + промпт.
+- **Эмбеддинги:** OpenAI `text-embedding-3`, sentence-transformers для семантического поиска.
+- **Оценка LLM:** BLEU/ROUGE (генерация), human eval, LLM-as-judge (осторожно с bias).
+- **Квантизация** (INT8/4-bit) — уменьшение памяти и ускорение инференса.
+
+### MLOps и мониторинг
+
+- **Data drift** vs **concept drift** — PSI, KS-тест, Evidently AI.
+- **Feature store** — Feast, Tecton: единый источник признаков train/serve.
+- **sklearn Pipeline + ColumnTransformer** — обязательный паттерн против data leakage.
+
+### Временные ряды (современные альтернативы)
+
+- **Prophet** — по-прежнему baseline для бизнес-рядов с сезонностью.
+- **NeuralProphet**, **N-BEATS**, **Temporal Fusion Transformer** — нейросетевые варианты.
+- **sktime** / **statsforecast** — единые API для классических и ML-моделей.
+
+### Explainability
+
+- **SHAP** — локальные объяснения любой модели (TreeExplainer для бустинга).
+- **Permutation importance** — глобальная важность через перемешивание признака.
+
+```python
+import shap
+explainer = shap.TreeExplainer(lgbm)
+shap_values = explainer.shap_values(X_test)
+```
+
+---
+
 ## Связи с другими темами
 
 - [Machine Learning — Основы](../ml/ml-osnovy.md) — базовый практический цикл ML на Python. `#ML`
@@ -613,3 +667,4 @@ $$\text{Теорема Байеса:} \quad P(c_i \mid a) = \frac{P(a \mid c_i)\
 | Дата | Изменение | Источник |
 |------|-----------|----------|
 | 2026-07-03 | Импорт и полный перевод шпаргалки на русский | Aaron Wang, DS Cheatsheet 2.0 (PDF) |
+| 2026-07-03 | Актуализация 2026: LLM/RAG, LightGBM/CatBoost, SHAP, MLOps, исправление p-value | Редакция KB |

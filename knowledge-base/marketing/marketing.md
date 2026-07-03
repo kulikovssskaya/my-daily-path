@@ -42,7 +42,15 @@ $$\text{CRR} = \frac{CE - CN}{CS} \times 100\%$$
 где $CE$ — клиентов на конец периода, $CN$ — новых клиентов за период, $CS$ —
 клиентов на начало периода.
 
-**Churn Rate** — отток, обратный удержанию: $\text{Churn} = 1 - \text{CRR}$.
+**Churn Rate** — отток. Если CRR выражен в **процентах** (как в формуле выше),
+то $\text{Churn} = 100\% - \text{CRR}$. В долях: $\text{churn} = 1 - \text{CRR}/100$.
+
+**NRR (Net Revenue Retention)** — удержание выручки с учётом апсейла и даунгрейда
+(важно для SaaS): $\text{NRR} = \frac{\text{MRR}_{\text{конец}} - \text{новый MRR}}{\text{MRR}_{\text{начало}}} \times 100\%$.
+
+**CAC (Customer Acquisition Cost)** — стоимость привлечения клиента:
+$\text{CAC} = \frac{\text{маркетинговые затраты}}{\text{число новых клиентов}}$.
+Сравнивают с LTV: здоровое соотношение LTV/CAC часто > 3.
 
 ### Денежные метрики
 
@@ -93,11 +101,12 @@ def get_month(x):
 # Месяц первой транзакции пользователя = его когорта
 data["cohortMonth"] = data.groupby("user_id")["month_year"].transform("min")
 
-def get_date(df, column):
-    return df[column].dt.year, df[column].dt.month, df[column].dt.day
-
-# Индекс когорты = разница в месяцах между текущей и первой транзакцией
-data["cohort_index"] = year_diff * 12 + month_diff + 1
+# Разница в месяцах между текущей транзакцией и когортой
+data["cohort_index"] = (
+    (data["month_year"].dt.year - data["cohortMonth"].dt.year) * 12
+    + (data["month_year"].dt.month - data["cohortMonth"].dt.month)
+    + 1
+)
 
 # Таблица когорт (уголком)
 cohorts = data.pivot_table(index="cohortMonth", columns="cohort_index",
@@ -140,3 +149,4 @@ plt.show()
 | Дата | Изменение | Источник |
 |------|-----------|----------|
 | 2026-07-03 | Первичный импорт раздела Marketing | [Notion: Marketing](https://peat-possum-c31.notion.site/Marketing-24c8b85aafc080a2a1abeb5f17066d2f) |
+| 2026-07-03 | Актуализация: формула Churn, NRR/CAC, исправленный когортный код | Редакция KB |

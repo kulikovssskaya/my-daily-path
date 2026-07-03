@@ -6,7 +6,7 @@ tags: ["#ML", "#Analytics", "#Python", "#DataScience", "#DeepLearning", "#scikit
 source: "https://peat-possum-c31.notion.site/ML-caca8dc0d8e94f08831120f6af512357 (ML, ML PART 2, ML part 3)"
 imported: "2026-07-03"
 updated: "2026-07-03"
-status: "template"
+status: "ready"
 ---
 
 # Machine Learning — Основы
@@ -409,20 +409,16 @@ print(scores.mean(), scores.std())  # маленький std → метрика 
 **Сериализация** сохраняет обученную модель на диск для дальнейшего использования.
 
 ```python
-# Классический способ из курса — pickle
-import pickle
+# Рекомендуемый способ для sklearn (2025–2026)
+import joblib
 
-with open("model.pickle", "wb") as f:
-    pickle.dump(tree, f)
-
-with open("model.pickle", "rb") as f:
-    model = pickle.load(f)
+joblib.dump(tree, "model.joblib")
+model = joblib.load("model.joblib")
 ```
 
-> 💡 Для sklearn-моделей в 2025–2026 предпочтительнее **joblib** (быстрее на
-> больших numpy-массивах). Для переносимости между окружениями рассматривайте
-> **ONNX** или **skops**. ⚠️ Никогда не загружайте pickle из ненадёжных
-> источников — это выполнение произвольного кода.
+> 💡 **joblib** быстрее pickle на больших numpy-массивах. Для переносимости между
+> окружениями — **ONNX** или **skops**. ⚠️ Не загружайте pickle/joblib из
+> ненадёжных источников — это выполнение произвольного кода.
 
 **Peer review** — процесс, в котором дата-сайентисты и разработчики проводят
 ревью кода и исследований друг для друга.
@@ -471,39 +467,74 @@ $$
 
 ## Практическая реализация (сквозной пример)
 
-Мини-пайплайн «данные → модель → оценка», объединяющий изученное:
+Пайплайн без утечки данных: препроцессинг внутри `Pipeline`, обучение только на train.
+
+![ML-пайплайн: ColumnTransformer + Pipeline, fit на train, predict на test](/kb-img/ml-pipeline.svg)
 
 ```python
 import pandas as pd
+import joblib
 from sklearn.model_selection import train_test_split, cross_val_score
+from sklearn.compose import ColumnTransformer
+from sklearn.pipeline import Pipeline
+from sklearn.preprocessing import OneHotEncoder, StandardScaler
+from sklearn.impute import SimpleImputer
 from sklearn.ensemble import RandomForestClassifier
-from sklearn.metrics import accuracy_score, classification_report
+from sklearn.metrics import classification_report
 
-# 1. Загрузка и базовый EDA
 df = pd.read_csv("data.csv")
-missing = (df.isna().sum() / len(df) * 100).sort_values()
-
-# 2. Очистка: импутация + удаление неинформативных признаков
-df = df.dropna(subset=["target"])              # без таргета строки бесполезны
-df["manufacturer"] = df["manufacturer"].fillna("other")
-
-# 3. Разделение на признаки и таргет
-x = pd.get_dummies(df.drop(columns=["target"]))
+X = df.drop(columns=["target"])
 y = df["target"]
-x_train, x_test, y_train, y_test = train_test_split(
-    x, y, test_size=0.3, random_state=42, stratify=y  # stratify — сохранить баланс классов
+
+num_cols = X.select_dtypes("number").columns.tolist()
+cat_cols = X.select_dtypes(include=["object", "category"]).columns.tolist()
+
+preprocess = ColumnTransformer([
+    ("num", Pipeline([
+        ("imputer", SimpleImputer(strategy="median")),
+        ("scaler", StandardScaler()),
+    ]), num_cols),
+    ("cat", Pipeline([
+        ("imputer", SimpleImputer(strategy="most_frequent")),
+        ("ohe", OneHotEncoder(handle_unknown="ignore", sparse_output=False)),
+    ]), cat_cols),
+])
+
+pipe = Pipeline([
+    ("preprocess", preprocess),
+    ("clf", RandomForestClassifier(random_state=42, class_weight="balanced", n_jobs=-1)),
+])
+
+X_train, X_test, y_train, y_test = train_test_split(
+    X, y, test_size=0.3, random_state=42, stratify=y
 )
 
-# 4. Обучение
-model = RandomForestClassifier(random_state=42, class_weight="balanced", n_jobs=-1)
-model.fit(x_train, y_train)
+pipe.fit(X_train, y_train)
+print(classification_report(y_test, pipe.predict(X_test)))
 
-# 5. Оценка + проверка на переобучение
-print("Test accuracy:", accuracy_score(y_test, model.predict(x_test)))
-print(classification_report(y_test, model.predict(x_test)))
+cv = cross_val_score(pipe, X, y, cv=5, scoring="f1_macro")
+print(f"CV F1: {cv.mean():.3f} ± {cv.std():.3f}")
 
-cv = cross_val_score(model, x, y, cv=5)
-print(f"CV: {cv.mean():.3f} ± {cv.std():.3f}")  # стабильность модели
+joblib.dump(pipe, "rf_pipeline.joblib")
+```
+
+### Тюнинг гиперпараметров (Optuna)
+
+```python
+import optuna
+from sklearn.model_selection import cross_val_score
+
+def objective(trial):
+    params = {
+        "clf__n_estimators": trial.suggest_int("n_estimators", 50, 300),
+        "clf__max_depth": trial.suggest_int("max_depth", 3, 20),
+    }
+    pipe.set_params(**params)
+    return cross_val_score(pipe, X_train, y_train, cv=3, scoring="f1_macro").mean()
+
+study = optuna.create_study(direction="maximize")
+study.optimize(objective, n_trials=30)
+pipe.set_params(**{f"clf__{k}": v for k, v in study.best_params.items()})
 ```
 
 ---
@@ -514,7 +545,10 @@ print(f"CV: {cv.mean():.3f} ± {cv.std():.3f}")  # стабильность мо
 - ✅ **`stratify=y`** в `train_test_split` для несбалансированных классов.
 - ✅ Не оценивайте классификацию только по accuracy — используйте precision/recall/F1/ROC-AUC.
 - ✅ Масштабируйте признаки (`StandardScaler`) для линейных моделей и нейросетей; деревьям это не нужно.
-- ✅ `OneHotEncoder` / `pd.get_dummies` для категориальных признаков (не подавайте текст напрямую).
+- ✅ Используйте **`Pipeline` + `ColumnTransformer`** — препроцессинг только на train.
+- ✅ **`OneHotEncoder`** внутри пайплайна, не `get_dummies` до split (утечка).
+- ✅ Для табличных данных 2025–2026: **LightGBM / CatBoost** часто сильнее RF.
+- ✅ Объяснимость: **SHAP** (`TreeExplainer` для бустинга).
 - ⚠️ **Утечка данных (data leakage):** трансформеры (scaler, encoder) обучайте только на train, применяйте к test. Оборачивайте в `Pipeline`.
 - ⚠️ Номинативные числовые коды (регионы, ZIP) — не числа по смыслу, кодируйте как категории.
 - ⚠️ Не загружайте `pickle` из недоверенных источников.
@@ -560,3 +594,4 @@ print(f"CV: {cv.mean():.3f} ± {cv.std():.3f}")  # стабильность мо
 | Дата | Изменение | Источник |
 |------|-----------|----------|
 | 2026-07-03 | Первичный импорт и переструктурирование разделов ML, ML PART 2, ML part 3 | [Notion: ML](https://peat-possum-c31.notion.site/ML-caca8dc0d8e94f08831120f6af512357) |
+| 2026-07-03 | Актуализация: Pipeline+ColumnTransformer, Optuna, joblib, ml-pipeline.svg | Редакция KB |

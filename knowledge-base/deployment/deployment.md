@@ -72,6 +72,28 @@ GROUP BY salesman_id;
 - ⚠️ Data Lake без каталога и управления рискует превратиться в «болото данных» (data swamp).
 - 💡 Современный подход 2025–2026: **Lakehouse** (Delta Lake / Iceberg) объединяет плюсы DWH и Data Lake.
 
+## MLOps: жизненный цикл модели (2025–2026)
+
+| Этап | Инструменты / практики |
+|---|---|
+| Эксперименты | MLflow, Weights & Biases, Jupyter |
+| Версионирование данных | DVC, lakeFS |
+| CI/CD модели | GitHub Actions, pytest + model tests |
+| Сервинг | FastAPI, BentoML, Triton, vLLM (LLM) |
+| Мониторинг | Evidently AI, Grafana, дрейф признаков/концепции |
+| Переобучение | Airflow DAG по расписанию или по триггеру дрейфа |
+
+```python
+# Минимальный контракт продакшен-модели
+metadata = {
+    "model_version": "2.1.0",
+    "train_date": "2026-06-15",
+    "metrics": {"f1_macro": 0.87},
+    "feature_schema": ["age", "income", "region"],
+}
+joblib.dump({"pipeline": pipe, "metadata": metadata}, "model_v2.joblib")
+```
+
 ## Связи с другими темами
 
 - [Базы данных](../databases/bazy-dannyh.md) — OLTP/OLAP, схемы «звезда»/«снежинка». `#Databases`
@@ -94,3 +116,4 @@ GROUP BY salesman_id;
 | Дата | Изменение | Источник |
 |------|-----------|----------|
 | 2026-07-03 | Первичный импорт раздела Deployment | [Notion: Deployment](https://peat-possum-c31.notion.site/Deployment-2858b85aafc0806e8f07ec1086cc06cf) |
+| 2026-07-03 | Актуализация: MLOps lifecycle, metadata contract, Lakehouse | Редакция KB |

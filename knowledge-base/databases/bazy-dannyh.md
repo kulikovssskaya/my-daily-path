@@ -57,11 +57,27 @@ status: "ready"
 - **Снежинка (snowflake)** — измерения дополнительно нормализованы (меньше
   дублирования, но больше соединений).
 
-### ETL
+### ETL и ELT (2025–2026)
 
 **ETL (Extract, Transform, Load)** — извлечь данные из источников, преобразовать
 к общему формату и загрузить в единую точку аналитической обработки (обычно —
 корпоративное хранилище с OLAP-структурой).
+
+**ELT (Extract, Load, Transform)** — сначала загружают сырые данные в Lake/Warehouse
+(Parquet, Delta, Iceberg), трансформации выполняют SQL-инструментами (**dbt**).
+Популярен при облачных DWH (Snowflake, BigQuery, Databricks).
+
+```sql
+-- Пример dbt-модели (упрощённо): витрина продаж
+SELECT
+    d.date_key,
+    r.region_name,
+    SUM(f.revenue) AS total_revenue
+FROM {{ ref('fact_sales') }} f
+JOIN {{ ref('dim_date') }} d ON f.date_key = d.date_key
+JOIN {{ ref('dim_region') }} r ON f.region_key = r.region_key
+GROUP BY 1, 2
+```
 
 ## Практическая реализация (SQL)
 
@@ -100,3 +116,4 @@ GROUP BY salesman_id;
 | Дата | Изменение | Источник |
 |------|-----------|----------|
 | 2026-07-03 | Первичный импорт раздела БД | [Notion: БД](https://peat-possum-c31.notion.site/7ddb789631fc4ad1aaa151542278c53e) |
+| 2026-07-03 | Актуализация: ELT vs ETL, dbt, Parquet/Delta/Iceberg | Редакция KB |

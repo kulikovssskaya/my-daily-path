@@ -64,13 +64,13 @@ df = pd.read_excel("partner_data.xlsx", sheet_name="partner_data1",
 
 # JSON
 import json
-with open("data.json", "r") as j:
-    contents = json.load(j)          # -> список/словарь
-    contents[1]["balance"]
+with open("data.json", "r", encoding="utf-8") as j:
+    contents = json.load(j)
 
 df = pd.read_json("data.json")
-df.set_index("id", inplace=True)     # сделать id индексом (inplace сохраняет изменения)
-pd.read_json("data_cp1251.json", encoding="cp1251")  # кодировка Windows-1251
+df = df.set_index("id")            # предпочтительнее inplace=False (pandas 2.x)
+pd.read_parquet("data.parquet")    # стандартный формат обмена в 2025–2026
+df.to_parquet("out.parquet", index=False)
 ```
 
 ### Обзор датафрейма
@@ -140,8 +140,12 @@ df = df.reset_index()   # индекс -> обычный столбец
 |-------|-----------|
 | `concat(axis=0)` | присоединяет таблицу снизу |
 | `concat(axis=1)` | присоединяет таблицу справа |
-| `merge(how="inner")` | остаются объекты с общим ключом в **обеих** таблицах (пересечение) |
-| `merge(how="outer")` | остаются **все** объекты (объединение) |
+| `merge(how="inner")` | пересечение по ключу |
+| `merge(how="left")` | все строки левой таблицы + совпадения справа |
+| `merge(how="right")` | все строки правой таблицы + совпадения слева |
+| `merge(how="outer")` | объединение всех строк |
+
+![Типы join в pd.merge: inner, left, right, outer](/kb-img/merge-joins.svg)
 
 > ⚠️ Метод `df.append()` **удалён в pandas 2.x** — используйте `pd.concat([df1, df2], ignore_index=True)`.
 
@@ -181,18 +185,18 @@ ohe.inverse_transform(ohe_fuel)       # обратное преобразова�
 
 ### Нормализация и стандартизация
 
-**Нормализация** — приведение данных к диапазону (обычно `[0..1]` или `[-1..1]`). Цели: сравнивать признаки между собой и приближать к нормальному распределению.
+**Нормализация (Min-Max scaling)** — линейное приведение признака к заданному диапазону (обычно `[0, 1]`). **Не делает** распределение нормальным — для этого нужны другие преобразования (логарифм, Box-Cox, Yeo-Johnson).
 
-**Стандартизация (Z-масштабирование)** — вычесть среднее и поделить на стандартное отклонение.
+**Стандартизация (Z-масштабирование)** — вычесть среднее и поделить на стандартное отклонение; результат имеет $\mu \approx 0$, $\sigma \approx 1$.
 
 ```python
-from sklearn.preprocessing import StandardScaler
+from sklearn.preprocessing import StandardScaler, MinMaxScaler
 
 std_scaler = StandardScaler()
-std_scaler.fit(df[["odometer", "price"]])
-print(std_scaler.mean_, std_scaler.var_)   # среднее и дисперсия
-scaled = std_scaler.transform(df[["odometer", "price"]])
-std_scaler.transform([[50000, 30000]])     # значения на пересечении показателей
+X_std = std_scaler.fit_transform(df[["odometer", "price"]])
+
+minmax = MinMaxScaler()
+X_mm = minmax.fit_transform(df[["odometer", "price"]])
 ```
 
 ## Математическая основа
@@ -213,6 +217,7 @@ $$
 - ✅ Обучайте `StandardScaler`/`OneHotEncoder` только на train, применяйте к test (избегайте утечки данных).
 - ✅ Сильно зависимые (коллинеарные) признаки могут вести к переобучению — проверяйте корреляции.
 - ✅ Указывайте `encoding` при чтении файлов в нестандартных кодировках (`cp1251`).
+- 💡 Для очень больших данных рассмотрите **Polars** (ленивые запросы, Parquet).
 
 ## Связи с другими темами
 
@@ -236,3 +241,4 @@ $$
 | Дата | Изменение | Источник |
 |------|-----------|----------|
 | 2026-07-03 | Первичный импорт и переструктурирование раздела Pandas | [Notion: Pandas](https://peat-possum-c31.notion.site/Pandas-0ddba042bbd8453aa941c2ff4ba7f2eb) |
+| 2026-07-03 | Актуализация: join-диаграмма, MinMaxScaler, Parquet, Polars, исправление нормализации | Редакция KB |

@@ -112,7 +112,9 @@ a ^ b   # a.symmetric_difference(b)  — симметричная разност
 
 ![Иерархия структур данных Python: list, tuple, set, dict и базовые типы](/kb-img/python-types.svg)
 
-Неупорядоченная изменяемая коллекция пар «ключ-значение» с уникальными ключами. Ключами могут быть строки, числа, кортежи; значениями — что угодно (в т.ч. списки).
+Неупорядоченная **изменяемая** коллекция пар «ключ-значение» с уникальными ключами.
+С Python 3.7+ словари **сохраняют порядок вставки** (гарантировано с 3.7).
+Ключами могут быть строки, числа, кортежи; значениями — что угодно.
 
 ```python
 d = {"facebook": 120, "youtube": 299}
@@ -167,11 +169,33 @@ squares = {x: x * 5 for x in range(1, 6)}   # dict comprehension
 ### Чтение файлов
 
 ```python
-# Менеджер контекста автоматически закроет файл
+from pathlib import Path
+
+# Современный способ (pathlib, Python 3.4+)
+text = Path("data.txt").read_text(encoding="utf-8")
+lines = Path("data.txt").read_text(encoding="utf-8").splitlines()
+
+# Классический способ — тоже валиден
 with open("data.txt", "r", encoding="utf-8") as file:
-    content = file.read()      # весь файл строкой
-    # file.readline()  — одна строка
-    # file.readlines() — список строк
+    content = file.read()
+```
+
+### Современный Python (3.10+): `match/case` и типы
+
+```python
+from typing import Literal
+
+def classify_metric(value: float) -> Literal["low", "mid", "high"]:
+    match value:
+        case v if v < 0.3:
+            return "low"
+        case v if v < 0.7:
+            return "mid"
+        case _:
+            return "high"
+
+def total(items: list[float]) -> float:
+    return sum(items)
 ```
 
 ### `zip`
@@ -212,12 +236,17 @@ python script.py     # запуск программы
 Пример: частотность значений и вывод процентов.
 
 ```python
+from collections import Counter
+
 frequency_dict = {"facebook": 120, "youtube": 299, "vk": 81}
 total = sum(frequency_dict.values())
 
 for name, count in frequency_dict.items():
     percent = count / total * 100
     print(f"{name}: {round(percent, 2)}%")
+
+# Counter — компактнее для подсчёта частот
+Counter(["ml", "data", "ml", "python"]).most_common(2)
 ```
 
 ## Лучшие практики и подводные камни
@@ -258,3 +287,4 @@ for name, count in frequency_dict.items():
 | Дата | Изменение | Источник |
 |------|-----------|----------|
 | 2026-07-03 | Первичный импорт и переструктурирование раздела Python | [Notion: Python](https://peat-possum-c31.notion.site/Python-929e0fa837974c6a835fab17ab457829) |
+| 2026-07-03 | Актуализация: порядок dict 3.7+, pathlib, match/case, Counter | Редакция KB |

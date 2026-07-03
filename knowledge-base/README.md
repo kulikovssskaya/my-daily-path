@@ -51,7 +51,11 @@
 > CRISP-DM, Python types, DataFrame, chart types, box plot, stack/queue, ML task types,
 > decision tree, cross-validation, bias-variance, confusion matrix, ROC/AUC, bagging vs boosting,
 > neural network, PCA, transformer, hypothesis flow, star schema, OLTP/OLAP, REST API,
-> Airflow DAG, AIDA funnel, retention curve, ETL pipeline.
+> Airflow DAG, AIDA funnel, retention curve, ETL pipeline, **merge joins**, **ML pipeline**.
+
+> **Актуализация 2026-07-03:** проверка фактов, современные примеры кода (sklearn Pipeline,
+> Pydantic v2, Optuna, seaborn, TaskFlow API, ELT/dbt, LLM/RAG), исправление ошибок
+> (p-value, Churn, box plot whiskers, dict ordering).
 
 ---
 

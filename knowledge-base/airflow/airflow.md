@@ -17,7 +17,7 @@ status: "ready"
 
 ## Ключевые концепции
 
-- **DAG** — направленный ациклический граф этапов; **идемпотентен**.
+- **DAG** — направленный ациклический граф этапов (граф **без циклов**).
 - **Операторы (Operators)** — «как запустить» (PythonOperator, BashOperator, PostgresOperator).
 - **Задачи (Tasks)** — «что запустить».
 - **Сенсоры (Sensors)** — операторы для событийных пайплайнов (ждут наступления условия).
@@ -28,8 +28,9 @@ status: "ready"
 
 ### DAG, операторы и задачи
 
-**DAG** (Directed Acyclic Graph) состоит из этапов. Он **идемпотентен** — при
-повторных запусках даёт один и тот же результат.
+**DAG** (Directed Acyclic Graph) — граф задач без циклов: каждый запуск описывает
+последовательность шагов, но **идемпотентность** относится к **задачам**, а не к DAG
+как структуре. Повторный запуск задачи с теми же входами должен давать тот же результат.
 
 - **Операторы** — «рабочие», выполняющие задачи. Готовые операторы:
   - `PythonOperator` — исполнение Python-кода;
@@ -100,11 +101,11 @@ source .venv/bin/activate
 airflow webserver -p 8090
 airflow scheduler
 
-# Через Docker Compose
-docker-compose up airflow-init
-docker-compose up -d          # в фоне
+# Через Docker Compose V2
+docker compose up airflow-init
+docker compose up -d          # в фоне
 # localhost:8080  (логин/пароль: airflow / airflow)
-docker-compose down           # остановить все контейнеры
+docker compose down
 ```
 
 ## Лучшие практики и подводные камни
@@ -114,6 +115,30 @@ docker-compose down           # остановить все контейнеры
 - ⚠️ `SequentialExecutor` — только для отладки (одна задача за раз).
 - ⚠️ Проверяйте DAG (`python3 dag.py`) перед деплоем в папку `dags/`.
 - 💡 Храните креды в **Connections**, а параметры — в **Variables**, не в коде.
+- 💡 **TaskFlow API** (Airflow 2.x): декоратор `@task` вместо явных операторов — чище зависимости и XCom.
+
+```python
+from airflow.decorators import dag, task
+from datetime import datetime
+
+@dag(start_date=datetime(2026, 1, 1), schedule="@daily", catchup=False)
+def etl_example():
+    @task
+    def extract():
+        return {"rows": 100}
+
+    @task
+    def transform(data: dict):
+        return data["rows"] * 2
+
+    @task
+    def load(count: int):
+        print(f"Loaded {count} records")
+
+    load(transform(extract()))
+
+etl_example()
+```
 
 ## Связи с другими темами
 
@@ -136,3 +161,4 @@ docker-compose down           # остановить все контейнеры
 | Дата | Изменение | Источник |
 |------|-----------|----------|
 | 2026-07-03 | Первичный импорт раздела Airflow | [Notion: Airflow](https://peat-possum-c31.notion.site/Airflow-2998b85aafc08035922bd5a31fda0881) |
+| 2026-07-03 | Актуализация: идемпотентность задач, docker compose, TaskFlow API | Редакция KB |

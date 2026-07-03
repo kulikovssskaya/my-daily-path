@@ -48,7 +48,7 @@ import pandas as pd
 response = requests.get(url, params=params)
 
 # POST (data — тело запроса, timeout — время ожидания)
-response = requests.post(url, data=params, timeout=10)
+response = requests.post(url, json=params, timeout=10)  # JSON-тело для REST API
 
 response.status_code   # код статуса
 response.text          # ответ строкой
@@ -64,22 +64,22 @@ df.to_csv("data/iTunes_api.csv", sep="\t", index=False)
 ### Git — основные команды
 
 ```bash
-# Работа в ветке master
+# Работа в ветке main (современный дефолт)
 git clone <project_path>          # клонировать репозиторий
 git add <file>                    # добавить в отслеживаемые (git add . — все)
 git commit -m "commit text"       # зафиксировать изменения
-git push origin master            # отправить на сервер
+git push origin main              # отправить на сервер
 
 # Работа в отдельной ветке
-git checkout -b new_branch        # создать и перейти в ветку
-git push origin new_branch
+git switch -c new_branch          # создать и перейти (вместо checkout -b)
+git push -u origin new_branch
 
 # Полезное
 git status        # изменения в рабочем каталоге
-git log           # история коммитов
-git branch        # список веток (git branch -r — удалённые)
-git pull origin master   # загрузить и объединить изменения
-git diff origin/master   # различия с удалённой веткой
+git log --oneline # история коммитов
+git branch -a     # локальные и удалённые ветки
+git pull origin main
+git diff origin/main
 ```
 
 ## Практическая реализация: сервис на FastAPI
@@ -147,12 +147,30 @@ class Prediction(BaseModel):
 
 @app.post("/predict", response_model=Prediction)
 def predict(form: Form):
-    df = pd.DataFrame.from_dict([form.dict()])
+    df = pd.DataFrame.from_dict([form.model_dump()])  # pydantic v2
     y = model["model"].predict(df)
-    return {"Loan_ID": form.Loan_ID, "Result": y[0]}
+    return {"Loan_ID": form.Loan_ID, "Result": float(y[0])}
 ```
 
-### Запуск по расписанию (APScheduler)
+> **Pydantic v2:** `form.dict()` заменён на `form.model_dump()`. Для FastAPI ≥ 0.100
+> рекомендуется lifespan вместо `@app.on_event("startup")`:
+
+```python
+from contextlib import asynccontextmanager
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    global model
+    model = joblib.load("model.joblib")
+    yield
+
+app = FastAPI(lifespan=lifespan)
+```
+
+### Запуск по расписанию
+
+Для продакшена **не** держите APScheduler внутри веб-процесса — используйте
+Airflow, Celery Beat или системный cron. Пример локального прототипа:
 
 ```python
 from apscheduler.schedulers.blocking import BlockingScheduler
@@ -200,3 +218,4 @@ if __name__ == "__main__":
 | Дата | Изменение | Источник |
 |------|-----------|----------|
 | 2026-07-03 | Первичный импорт разделов API и Fast API | [Notion: API](https://peat-possum-c31.notion.site/API-e8ff36bbf9cc4035b2eb7cfd87c0ca59) |
+| 2026-07-03 | Актуализация: Pydantic v2, lifespan, git main/switch, requests json= | Редакция KB |
