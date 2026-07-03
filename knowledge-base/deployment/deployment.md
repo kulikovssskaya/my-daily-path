@@ -56,6 +56,8 @@ GROUP BY salesman_id;
 
 ### ETL
 
+![ETL-пайплайн: Extract, Transform, Load; Data Lake vs Data Warehouse](/kb-img/etl-pipeline.svg)
+
 **ETL (Extract, Transform, Load)** — механизм консолидации данных из разных
 систем: извлечь, привести к общему формату и загрузить в единую точку
 аналитической обработки (как правило, DWH с OLAP-структурой).

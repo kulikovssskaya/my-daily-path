@@ -64,6 +64,8 @@ queue.append(2)
 queue.popleft()      # dequeue -> O(1) -> вернёт 1
 ```
 
+![Стек (LIFO) vs очередь (FIFO): push/pop сверху и enqueue/dequeue с концов](/kb-img/stack-queue.svg)
+
 ### Deque (двухсторонняя очередь)
 
 **Deque** (double-ended queue) — структура, где можно добавлять и удалять

@@ -36,6 +36,8 @@ status: "ready"
 - Методы: **GET** (read), **POST** (create; параметры передаются в теле запроса).
 - **Postman** — инструмент для ручной проверки API.
 
+![Поток REST API: Client -- HTTP --> API Server (FastAPI) --> Model](/kb-img/rest-api.svg)
+
 ### Библиотека requests
 
 ```python

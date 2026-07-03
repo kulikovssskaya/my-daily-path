@@ -63,6 +63,8 @@ $$\text{LTV} = \text{ARPU} \times \text{Lifetime} \qquad \text{LTV} = \text{AOV}
 - **AIDA** (Attention, Interest, Desire, Action) — основа классической воронки продаж.
 - **KPI (Key Performance Indicator)** — ключевые показатели эффективности.
 
+![Воронка AIDA: Awareness, Interest, Desire, Action и связанные метрики](/kb-img/aida-funnel.svg)
+
 **Алгоритм работы маркетингового аналитика:**
 1. Сформировать KPI и увязать с метриками.
 2. Разбить KPI на понятные задачи.
@@ -74,6 +76,8 @@ $$\text{LTV} = \text{ARPU} \times \text{Lifetime} \qquad \text{LTV} = \text{AOV}
 8. Рекомендации → внедрение → оценка результатов.
 
 ## Практическая реализация: когортный анализ
+
+![Кривые retention по когортам: удержание пользователей по неделям после регистрации](/kb-img/retention-curve.svg)
 
 ```python
 import pandas as pd

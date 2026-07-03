@@ -183,6 +183,8 @@ is_outlier.sum() / len(df_clean) * 100 # процент выбросов
 
 Классификация бывает **бинарной** (2 класса) и **многоклассовой** (>2 классов).
 
+![Три типа задач ML: классификация, регрессия, кластеризация; supervised vs unsupervised](/kb-img/ml-task-types.svg)
+
 ### 2.6 Классификация и метрики качества
 
 **Train-test split** — перед обучением датасет делят на тренировочную и
@@ -210,6 +212,8 @@ confusion_matrix(y_test, y_pred)
 print(classification_report(y_test, y_pred))  # precision, recall, f1 по классам
 ```
 
+![Матрица ошибок 2x2: TP, FP, FN, TN и формулы precision, recall, F1](/kb-img/confusion-matrix.svg)
+
 > ⚠️ При **несбалансированных классах** (например, 500 vs 1000 объектов) accuracy
 > обманчива — модель может «угадывать» большинство. Смотрите precision/recall/F1,
 > ROC-AUC и балансируйте классы (`class_weight="balanced"`, oversampling/SMOTE).
@@ -221,6 +225,8 @@ print(classification_report(y_test, y_pred))  # precision, recall, f1 по кл�
 - **Узел (Node)** — правило (условие).
 - **Лист (Leaf)** — ответ (предсказание).
 - **Глубина** — максимальное число узлов до листа.
+
+![Дерево решений: узлы с условиями сплита и листья с предсказаниями](/kb-img/decision-tree.svg)
 
 ```python
 from sklearn.tree import DecisionTreeClassifier
@@ -250,6 +256,8 @@ print(accuracy_score(y_train, rf.predict(x_train)))
 print(accuracy_score(y_test, rf.predict(x_test)))
 rf.get_params()  # параметры обучения
 ```
+
+![Bagging (Random Forest) vs Boosting: параллельное усреднение vs последовательное исправление ошибок](/kb-img/bagging-boosting.svg)
 
 ### 2.8 Тюнинг гиперпараметров
 
@@ -325,6 +333,8 @@ lr.intercept_
   трёх слоёв: входной → скрытый → выходной.
 - Основные фреймворки: **PyTorch**, **Keras**, более низкоуровневый **TensorFlow**.
 
+![Полносвязная нейросеть: входной, скрытые и выходной слои с весами](/kb-img/neural-network.svg)
+
 Быстрый прототип на scikit-learn:
 
 ```python
@@ -365,6 +375,8 @@ criterion = nn.CrossEntropyLoss()  # softmax внутри, логиты на в�
 **Переобучение (overfitting)** — модель отлично работает на тренировке, но плохо
 на новых данных.
 
+![Компромисс bias-variance: оптимум между недообучением и переобучением](/kb-img/bias-variance.svg)
+
 **Train / Validation / Test split:**
 
 - **Train** — обучение модели.
@@ -374,6 +386,8 @@ criterion = nn.CrossEntropyLoss()  # softmax внутри, логиты на в�
 **Кросс-валидация** — метод оценки, показывающий, насколько модель стабильна на
 разных наборах данных. Если модель переобучилась, метрика будет сильно скакать
 от фолда к фолду.
+
+![K-fold cross-validation: каждый фолд по очереди служит валидацией](/kb-img/cross-validation.svg)
 
 ```python
 from sklearn.model_selection import cross_validate, cross_val_score

@@ -45,6 +45,13 @@
 | Раздел | Файл | Статус | Источник |
 |--------|------|--------|----------|
 | Шпаргалки | [`interview/ds-cheatsheet.md`](interview/ds-cheatsheet.md) | ✅ **Готово** | Aaron Wang — Data Science Cheatsheet 2.0 (PDF, перевод на русский) |
+| Собеседования | [`interview/ml-interview-handbook.md`](interview/ml-interview-handbook.md) | ✅ **Готово** | Lamhot Siagian — ML Interview Q&A Handbook, 200+ вопросов (PDF, перевод на русский) |
+
+> Диаграммы для наглядности — собственные SVG в [`public/kb-img/`](../public/kb-img/):
+> CRISP-DM, Python types, DataFrame, chart types, box plot, stack/queue, ML task types,
+> decision tree, cross-validation, bias-variance, confusion matrix, ROC/AUC, bagging vs boosting,
+> neural network, PCA, transformer, hypothesis flow, star schema, OLTP/OLAP, REST API,
+> Airflow DAG, AIDA funnel, retention curve, ETL pipeline.
 
 ---
 

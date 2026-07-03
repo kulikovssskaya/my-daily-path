@@ -35,6 +35,8 @@ CRISP-DM (Cross-Industry Standard Process for Data Mining) — итератив�
 5. **Evaluation** — оценка результатов относительно бизнес-целей.
 6. **Deployment** — внедрение решения.
 
+![Цикл CRISP-DM: шесть итеративных фаз от Business Understanding до Deployment](/kb-img/crisp-dm.svg)
+
 > **Data mining** — «добыча данных»: поиск неочевидных закономерностей и
 > взаимосвязей в больших объёмах данных.
 
