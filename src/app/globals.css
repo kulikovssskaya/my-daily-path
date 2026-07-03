@@ -1,0 +1,264 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 0 0% 100%;
+    --foreground: 240 10% 3.9%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 240 10% 3.9%;
+
+    --primary: 262 83% 58%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 240 4.8% 95.9%;
+    --secondary-foreground: 240 5.9% 10%;
+
+    --muted: 240 4.8% 95.9%;
+    --muted-foreground: 240 3.8% 46.1%;
+
+    --accent: 262 83% 96%;
+    --accent-foreground: 262 83% 40%;
+
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 0 0% 98%;
+
+    --border: 240 5.9% 90%;
+    --input: 240 5.9% 90%;
+    --ring: 262 83% 58%;
+
+    --radius: 0.75rem;
+  }
+
+  .dark {
+    --background: 240 10% 3.9%;
+    --foreground: 0 0% 98%;
+
+    --card: 240 10% 5.9%;
+    --card-foreground: 0 0% 98%;
+
+    --primary: 263 70% 65%;
+    --primary-foreground: 240 10% 3.9%;
+
+    --secondary: 240 3.7% 15.9%;
+    --secondary-foreground: 0 0% 98%;
+
+    --muted: 240 3.7% 15.9%;
+    --muted-foreground: 240 5% 64.9%;
+
+    --accent: 263 40% 20%;
+    --accent-foreground: 263 70% 85%;
+
+    --destructive: 0 62.8% 50.6%;
+    --destructive-foreground: 0 0% 98%;
+
+    --border: 240 3.7% 15.9%;
+    --input: 240 3.7% 18%;
+    --ring: 263 70% 65%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+  html {
+    -webkit-tap-highlight-color: transparent;
+  }
+}
+
+/* Thin, theme-aware scrollbars */
+@layer utilities {
+  .scrollbar-thin {
+    scrollbar-width: thin;
+    scrollbar-color: hsl(var(--border)) transparent;
+  }
+  .scrollbar-thin::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+  .scrollbar-thin::-webkit-scrollbar-thumb {
+    background-color: hsl(var(--border));
+    border-radius: 9999px;
+  }
+}
+
+/* FullCalendar theming via CSS variables (light + dark) */
+.mdp-calendar {
+  --fc-border-color: hsl(var(--border));
+  --fc-page-bg-color: transparent;
+  --fc-neutral-bg-color: hsl(var(--muted));
+  --fc-today-bg-color: hsl(var(--primary) / 0.08);
+  --fc-now-indicator-color: hsl(var(--destructive));
+  --fc-event-text-color: #ffffff;
+}
+.mdp-calendar .fc {
+  font-size: 0.8rem;
+}
+.mdp-calendar .fc .fc-toolbar-title {
+  font-size: 1rem;
+  font-weight: 600;
+}
+.mdp-calendar .fc .fc-col-header-cell-cushion,
+.mdp-calendar .fc .fc-daygrid-day-number,
+.mdp-calendar .fc .fc-timegrid-slot-label-cushion,
+.mdp-calendar .fc .fc-list-day-text,
+.mdp-calendar .fc .fc-list-day-side-text {
+  color: hsl(var(--foreground));
+  text-decoration: none;
+}
+.mdp-calendar .fc .fc-button {
+  background: hsl(var(--secondary));
+  border: 1px solid hsl(var(--border));
+  color: hsl(var(--secondary-foreground));
+  text-transform: capitalize;
+  box-shadow: none;
+}
+.mdp-calendar .fc .fc-button:hover {
+  background: hsl(var(--accent));
+  color: hsl(var(--accent-foreground));
+}
+.mdp-calendar .fc .fc-button-primary:not(:disabled).fc-button-active,
+.mdp-calendar .fc .fc-button-primary:not(:disabled):active {
+  background: hsl(var(--primary));
+  border-color: hsl(var(--primary));
+  color: hsl(var(--primary-foreground));
+}
+.mdp-calendar .fc .fc-list-event:hover td {
+  background: hsl(var(--accent));
+}
+.mdp-calendar .fc-theme-standard .fc-list-day-cushion {
+  background: hsl(var(--muted));
+}
+.mdp-calendar .fc-toolbar.fc-header-toolbar {
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+/* Minimal markdown styling for CV preview / reports */
+.markdown-body {
+  font-size: 0.875rem;
+  line-height: 1.6;
+  color: hsl(var(--foreground));
+}
+.markdown-body h1 {
+  font-size: 1.5rem;
+  font-weight: 700;
+  margin: 0.5rem 0;
+}
+.markdown-body h2 {
+  font-size: 1.15rem;
+  font-weight: 600;
+  margin: 1rem 0 0.35rem;
+  border-bottom: 1px solid hsl(var(--border));
+  padding-bottom: 0.2rem;
+}
+.markdown-body h3 {
+  font-size: 1rem;
+  font-weight: 600;
+  margin: 0.75rem 0 0.25rem;
+}
+.markdown-body p {
+  margin: 0.4rem 0;
+}
+.markdown-body ul {
+  list-style: disc;
+  padding-left: 1.25rem;
+  margin: 0.35rem 0;
+}
+.markdown-body ol {
+  list-style: decimal;
+  padding-left: 1.25rem;
+  margin: 0.35rem 0;
+}
+.markdown-body a {
+  color: hsl(var(--primary));
+  text-decoration: underline;
+}
+.markdown-body strong {
+  font-weight: 600;
+}
+.markdown-body code {
+  background: hsl(var(--muted));
+  padding: 0.1rem 0.3rem;
+  border-radius: 0.25rem;
+  font-size: 0.8em;
+}
+.markdown-body hr {
+  border: none;
+  border-top: 1px solid hsl(var(--border));
+  margin: 0.75rem 0;
+}
+
+/* Rich article styles (knowledge base) */
+.knowledge-article {
+  font-size: 0.9rem;
+}
+.knowledge-article h4 {
+  font-size: 0.95rem;
+  font-weight: 600;
+  margin: 0.75rem 0 0.25rem;
+}
+.knowledge-article pre {
+  background: hsl(var(--muted));
+  border: 1px solid hsl(var(--border));
+  border-radius: 0.6rem;
+  padding: 0.85rem 1rem;
+  overflow-x: auto;
+  margin: 0.6rem 0;
+  font-size: 0.8rem;
+  line-height: 1.5;
+}
+.knowledge-article pre code {
+  background: transparent;
+  padding: 0;
+  border-radius: 0;
+  font-size: inherit;
+  white-space: pre;
+}
+.knowledge-article blockquote {
+  border-left: 3px solid hsl(var(--primary) / 0.5);
+  background: hsl(var(--accent) / 0.4);
+  border-radius: 0 0.4rem 0.4rem 0;
+  padding: 0.5rem 0.85rem;
+  margin: 0.6rem 0;
+  color: hsl(var(--foreground));
+}
+.knowledge-article blockquote p {
+  margin: 0.2rem 0;
+}
+.knowledge-article table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 0.75rem 0;
+  font-size: 0.82rem;
+  display: block;
+  overflow-x: auto;
+}
+.knowledge-article th,
+.knowledge-article td {
+  border: 1px solid hsl(var(--border));
+  padding: 0.4rem 0.6rem;
+  text-align: left;
+  vertical-align: top;
+}
+.knowledge-article th {
+  background: hsl(var(--muted));
+  font-weight: 600;
+}
+.knowledge-article h2 {
+  scroll-margin-top: 1rem;
+}
+/* KaTeX: allow wide display equations to scroll instead of overflow */
+.knowledge-article .katex-display {
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 0.25rem 0;
+}
