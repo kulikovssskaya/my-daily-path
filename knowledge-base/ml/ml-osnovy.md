@@ -1,6 +1,7 @@
 ---
 title: "Machine Learning — Основы"
 section: "ML"
+summary: "Полный базовый цикл ML: типы переменных, EDA, классификация и регрессия, деревья и случайный лес, нейросети, кросс-валидация и подготовка модели к продакшену."
 tags: ["#ML", "#Analytics", "#Python", "#DataScience", "#DeepLearning", "#scikit-learn", "#PyTorch"]
 source: "https://peat-possum-c31.notion.site/ML-caca8dc0d8e94f08831120f6af512357 (ML, ML PART 2, ML part 3)"
 imported: "2026-07-03"
@@ -84,7 +85,7 @@ status: "template"
 появления каждого значения (какие значения мы будем видеть чаще).
 
 **Стандартное нормальное распределение** — нормальное распределение со средним
-\( \mu = 0 \) и стандартным отклонением \( \sigma = 1 \). Это самое популярное
+$\mu = 0$ и стандартным отклонением $\sigma = 1$. Это самое популярное
 распределение в статистике и ML.
 
 ### 2.3 Разведочный анализ данных (EDA)
@@ -273,8 +274,8 @@ print(grid.best_params_, grid.best_score_)
 
 ### 2.9 Линейная регрессия
 
-Алгоритм подбирает коэффициенты \( k \) и \( b \), чтобы приблизить целевую
-переменную: \( y = kx + b \). **Ошибка** — расстояние между линией и истинными
+Алгоритм подбирает коэффициенты $k$ и $b$, чтобы приблизить целевую
+переменную: $y = kx + b$. **Ошибка** — расстояние между линией и истинными
 значениями таргета на тренировочной выборке.
 
 ```python
@@ -418,27 +419,39 @@ with open("model.pickle", "rb") as f:
 
 **Линейная регрессия** — модель и функция потерь MSE:
 
-\[ \hat{y} = kx + b, \qquad \mathrm{MSE} = \frac{1}{n}\sum_{i=1}^{n}\left(y_i - \hat{y}_i\right)^2 \]
+$$
+\hat{y} = kx + b, \qquad \mathrm{MSE} = \frac{1}{n}\sum_{i=1}^{n}\left(y_i - \hat{y}_i\right)^2
+$$
 
 **MAE:**
 
-\[ \mathrm{MAE} = \frac{1}{n}\sum_{i=1}^{n}\left|\, y_i - \hat{y}_i \,\right| \]
+$$
+\mathrm{MAE} = \frac{1}{n}\sum_{i=1}^{n}\left|\, y_i - \hat{y}_i \,\right|
+$$
 
 **Логистическая регрессия** — сигмоида отображает линейную комбинацию в вероятность:
 
-\[ \sigma(z) = \frac{1}{1 + e^{-z}}, \qquad z = \mathbf{w}^\top \mathbf{x} + b \]
+$$
+\sigma(z) = \frac{1}{1 + e^{-z}}, \qquad z = \mathbf{w}^\top \mathbf{x} + b
+$$
 
-**Правило выбросов по IQR** (\( \mathrm{IQR} = Q_3 - Q_1 \)):
+**Правило выбросов по IQR** ($\mathrm{IQR} = Q_3 - Q_1$):
 
-\[ x \text{ — выброс}, \;\; \text{если}\;\; x < Q_1 - 1.5\,\mathrm{IQR} \;\; \text{или}\;\; x > Q_3 + 1.5\,\mathrm{IQR} \]
+$$
+x \text{ — выброс, если } x < Q_1 - 1.5\,\mathrm{IQR} \;\; \text{или}\;\; x > Q_3 + 1.5\,\mathrm{IQR}
+$$
 
 **Правило 3-сигм** (нормальное распределение):
 
-\[ x \text{ — выброс}, \;\; \text{если}\;\; |x - \mu| > 3\sigma \]
+$$
+x \text{ — выброс, если } |x - \mu| > 3\sigma
+$$
 
 **Accuracy** через матрицу ошибок:
 
-\[ \mathrm{Accuracy} = \frac{TP + TN}{TP + TN + FP + FN} \]
+$$
+\mathrm{Accuracy} = \frac{TP + TN}{TP + TN + FP + FN}
+$$
 
 ---
 
