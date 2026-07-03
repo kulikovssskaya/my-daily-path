@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="640" height="360" viewBox="0 0 640 360" font-family="ui-sans-serif, system-ui, sans-serif">
+  <rect x="0" y="0" width="640" height="360" rx="14" fill="#ffffff" stroke="#e2e8f0"/>
+  <text x="320" y="32" text-anchor="middle" font-size="18" font-weight="700" fill="#0f172a">Apache Airflow DAG</text>
+  <rect x="60" y="80" width="100" height="40" rx="6" fill="#dbeafe" stroke="#2563eb"/>
+  <text x="110" y="105" text-anchor="middle" font-size="11" fill="#1e40af">extract</text>
+  <line x1="160" y1="100" x2="200" y2="100" stroke="#94a3b8" stroke-width="2" marker-end="url(#c)"/>
+  <rect x="200" y="80" width="100" height="40" rx="6" fill="#ede9fe" stroke="#7c3aed"/>
+  <text x="250" y="105" text-anchor="middle" font-size="11" fill="#5b21b6">transform</text>
+  <line x1="300" y1="100" x2="340" y2="100" stroke="#94a3b8" stroke-width="2" marker-end="url(#c)"/>
+  <rect x="340" y="80" width="100" height="40" rx="6" fill="#dcfce7" stroke="#16a34a"/>
+  <text x="390" y="105" text-anchor="middle" font-size="11" fill="#166534">load</text>
+  <line x1="440" y1="100" x2="480" y2="100" stroke="#94a3b8" stroke-width="2" marker-end="url(#c)"/>
+  <rect x="480" y="80" width="100" height="40" rx="6" fill="#fef3c7" stroke="#d97706"/>
+  <text x="530" y="105" text-anchor="middle" font-size="11" fill="#92400e">validate</text>
+  <rect x="60" y="180" width="520" height="140" rx="8" fill="#f8fafc" stroke="#cbd5e1"/>
+  <text x="80" y="205" font-size="12" fill="#334155" font-weight="600">Components:</text>
+  <text x="80" y="228" font-size="11" fill="#475569">DAG - directed acyclic graph of tasks</text>
+  <text x="80" y="248" font-size="11" fill="#475569">Operator - template for a task (PythonOperator, BashOperator)</text>
+  <text x="80" y="268" font-size="11" fill="#475569">Scheduler - triggers DAG runs on schedule</text>
+  <text x="80" y="288" font-size="11" fill="#475569">Executor - Sequential / Local / Celery</text>
+  <text x="80" y="308" font-size="11" fill="#475569">Sensor - waits for external condition</text>
+  <defs><marker id="c" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 Z" fill="#94a3b8"/></marker></defs>
+</svg>

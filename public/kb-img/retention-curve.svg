@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="640" height="360" viewBox="0 0 640 360" font-family="ui-sans-serif, system-ui, sans-serif">
+  <rect x="0" y="0" width="640" height="360" rx="14" fill="#ffffff" stroke="#e2e8f0"/>
+  <text x="320" y="32" text-anchor="middle" font-size="18" font-weight="700" fill="#0f172a">Cohort Retention Curve</text>
+  <line x1="80" y1="280" x2="560" y2="280" stroke="#94a3b8" stroke-width="2"/>
+  <line x1="80" y1="280" x2="80" y2="70" stroke="#94a3b8" stroke-width="2"/>
+  <text x="320" y="310" text-anchor="middle" font-size="12" fill="#475569">Weeks since signup</text>
+  <text x="40" y="175" text-anchor="middle" font-size="12" fill="#475569" transform="rotate(-90 40 175)">Retention %</text>
+  <path d="M80,90 C150,120 250,200 400,250 C480,265 520,272 560,275" fill="none" stroke="#2563eb" stroke-width="3"/>
+  <text x="500" y="255" font-size="11" fill="#2563eb">Jan cohort</text>
+  <path d="M80,100 C160,140 280,210 420,255 C500,268 540,274 560,276" fill="none" stroke="#dc2626" stroke-width="3"/>
+  <text x="500" y="235" font-size="11" fill="#dc2626">Feb cohort</text>
+  <path d="M80,110 C170,160 300,220 440,260 C510,270 550,275 560,277" fill="none" stroke="#16a34a" stroke-width="3"/>
+  <text x="500" y="215" font-size="11" fill="#16a34a">Mar cohort</text>
+  <text x="320" y="340" text-anchor="middle" font-size="11" fill="#64748b">Sticky Factor = DAU/MAU  |  Churn = 1 - Retention</text>
+</svg>

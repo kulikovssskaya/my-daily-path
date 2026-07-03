@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="640" height="360" viewBox="0 0 640 360" font-family="ui-sans-serif, system-ui, sans-serif">
+  <rect x="0" y="0" width="640" height="360" rx="14" fill="#ffffff" stroke="#e2e8f0"/>
+  <text x="320" y="32" text-anchor="middle" font-size="18" font-weight="700" fill="#0f172a">Transformer Architecture</text>
+  <rect x="40" y="60" width="80" height="240" rx="6" fill="#dbeafe" stroke="#2563eb"/>
+  <text x="80" y="185" text-anchor="middle" font-size="11" fill="#1e40af" transform="rotate(-90 80 185)">Input tokens</text>
+  <rect x="140" y="80" width="100" height="50" rx="6" fill="#ede9fe" stroke="#7c3aed"/>
+  <text x="190" y="110" text-anchor="middle" font-size="11" fill="#5b21b6">Embedding</text>
+  <rect x="140" y="150" width="100" height="50" rx="6" fill="#fef3c7" stroke="#d97706"/>
+  <text x="190" y="175" text-anchor="middle" font-size="10" fill="#92400e">Positional</text>
+  <text x="190" y="190" text-anchor="middle" font-size="10" fill="#92400e">Encoding</text>
+  <rect x="270" y="60" width="140" height="240" rx="8" fill="#f0fdf4" stroke="#16a34a" stroke-width="2"/>
+  <text x="340" y="90" text-anchor="middle" font-size="12" font-weight="700" fill="#166534">Encoder</text>
+  <rect x="285" y="105" width="110" height="40" rx="4" fill="#dcfce7" stroke="#86efac"/>
+  <text x="340" y="130" text-anchor="middle" font-size="10" fill="#166534">Multi-Head Attention</text>
+  <rect x="285" y="160" width="110" height="30" rx="4" fill="#dcfce7" stroke="#86efac"/>
+  <text x="340" y="180" text-anchor="middle" font-size="10" fill="#166534">Feed Forward</text>
+  <text x="340" y="220" text-anchor="middle" font-size="10" fill="#64748b">x N layers</text>
+  <rect x="440" y="60" width="140" height="240" rx="8" fill="#eff6ff" stroke="#2563eb" stroke-width="2"/>
+  <text x="510" y="90" text-anchor="middle" font-size="12" font-weight="700" fill="#1e40af">Decoder</text>
+  <rect x="455" y="105" width="110" height="40" rx="4" fill="#dbeafe" stroke="#93c5fd"/>
+  <text x="510" y="130" text-anchor="middle" font-size="10" fill="#1e40af">Masked Attention</text>
+  <rect x="455" y="160" width="110" height="30" rx="4" fill="#dbeafe" stroke="#93c5fd"/>
+  <text x="510" y="180" text-anchor="middle" font-size="10" fill="#1e40af">Cross Attention</text>
+  <text x="320" y="330" text-anchor="middle" font-size="12" fill="#475569">BERT = encoder-only  |  GPT = decoder-only (autoregressive)</text>
+</svg>

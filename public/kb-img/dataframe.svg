@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="640" height="360" viewBox="0 0 640 360" font-family="ui-monospace, monospace">
+  <rect x="0" y="0" width="640" height="360" rx="14" fill="#ffffff" stroke="#e2e8f0"/>
+  <text x="320" y="32" text-anchor="middle" font-size="18" font-weight="700" fill="#0f172a" font-family="ui-sans-serif, system-ui, sans-serif">Pandas DataFrame</text>
+  <rect x="80" y="55" width="480" height="220" rx="8" fill="#f8fafc" stroke="#cbd5e1"/>
+  <rect x="80" y="55" width="80" height="30" fill="#e2e8f0" stroke="#cbd5e1"/>
+  <text x="120" y="75" text-anchor="middle" font-size="11" fill="#64748b" font-family="ui-sans-serif">index</text>
+  <rect x="160" y="55" width="130" height="30" fill="#dbeafe" stroke="#93c5fd"/>
+  <text x="225" y="75" text-anchor="middle" font-size="11" fill="#1e40af" font-family="ui-sans-serif">age</text>
+  <rect x="290" y="55" width="130" height="30" fill="#dcfce7" stroke="#86efac"/>
+  <text x="355" y="75" text-anchor="middle" font-size="11" fill="#166534" font-family="ui-sans-serif">city</text>
+  <rect x="420" y="55" width="140" height="30" fill="#fef3c7" stroke="#fcd34d"/>
+  <text x="490" y="75" text-anchor="middle" font-size="11" fill="#92400e" font-family="ui-sans-serif">salary</text>
+  <rect x="80" y="85" width="80" height="30" fill="#f1f5f9" stroke="#cbd5e1"/>
+  <text x="120" y="105" text-anchor="middle" font-size="11" fill="#475569">0</text>
+  <rect x="160" y="85" width="130" height="30" fill="#ffffff" stroke="#e2e8f0"/>
+  <text x="225" y="105" text-anchor="middle" font-size="11" fill="#334155">25</text>
+  <rect x="290" y="85" width="130" height="30" fill="#ffffff" stroke="#e2e8f0"/>
+  <text x="355" y="105" text-anchor="middle" font-size="11" fill="#334155">Moscow</text>
+  <rect x="420" y="85" width="140" height="30" fill="#ffffff" stroke="#e2e8f0"/>
+  <text x="490" y="105" text-anchor="middle" font-size="11" fill="#334155">50000</text>
+  <rect x="80" y="115" width="80" height="30" fill="#f1f5f9" stroke="#cbd5e1"/>
+  <text x="120" y="135" text-anchor="middle" font-size="11" fill="#475569">1</text>
+  <rect x="160" y="115" width="130" height="30" fill="#ffffff" stroke="#e2e8f0"/>
+  <text x="225" y="135" text-anchor="middle" font-size="11" fill="#334155">30</text>
+  <rect x="290" y="115" width="130" height="30" fill="#ffffff" stroke="#e2e8f0"/>
+  <text x="355" y="135" text-anchor="middle" font-size="11" fill="#334155">SPb</text>
+  <rect x="420" y="115" width="140" height="30" fill="#ffffff" stroke="#e2e8f0"/>
+  <text x="490" y="135" text-anchor="middle" font-size="11" fill="#334155">65000</text>
+  <rect x="80" y="145" width="80" height="30" fill="#f1f5f9" stroke="#cbd5e1"/>
+  <text x="120" y="165" text-anchor="middle" font-size="11" fill="#475569">2</text>
+  <rect x="160" y="145" width="130" height="30" fill="#ffffff" stroke="#e2e8f0"/>
+  <text x="225" y="165" text-anchor="middle" font-size="11" fill="#334155">28</text>
+  <rect x="290" y="145" width="130" height="30" fill="#ffffff" stroke="#e2e8f0"/>
+  <text x="355" y="165" text-anchor="middle" font-size="11" fill="#334155">Kazan</text>
+  <rect x="420" y="145" width="140" height="30" fill="#ffffff" stroke="#e2e8f0"/>
+  <text x="490" y="165" text-anchor="middle" font-size="11" fill="#334155">55000</text>
+  <text x="120" y="210" font-size="11" fill="#64748b" font-family="ui-sans-serif">.iloc[row, col]</text>
+  <text x="280" y="210" font-size="11" fill="#64748b" font-family="ui-sans-serif">.loc[label, col]</text>
+  <text x="460" y="210" font-size="11" fill="#64748b" font-family="ui-sans-serif">Series = 1 column</text>
+  <text x="320" y="310" text-anchor="middle" font-size="12" fill="#475569" font-family="ui-sans-serif">2D table: rows (observations) x columns (features)</text>
+  <text x="320" y="330" text-anchor="middle" font-size="11" fill="#94a3b8" font-family="ui-sans-serif">pd.read_csv() / pd.merge() / df.groupby()</text>
+</svg>

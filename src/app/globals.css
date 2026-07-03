@@ -262,3 +262,12 @@
   overflow-y: hidden;
   padding: 0.25rem 0;
 }
+/* Diagrams / figures embedded in articles */
+.knowledge-article img {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  margin: 1rem auto;
+  border: 1px solid hsl(var(--border));
+  border-radius: 0.75rem;
+}
