@@ -19,7 +19,8 @@ import {
   updateStreak,
 } from "@/lib/englishSrs";
 import { aiWordToDomain } from "@/lib/englishConstants";
-import { buildQuizQuestions, sessionScore } from "@/lib/englishQuiz";
+import { buildQuizQuestions, sessionScore, checkAnswer } from "@/lib/englishQuiz";
+import { matchesFinalReviewAnswer } from "@/lib/englishAnswerMatch";
 import type { EnglishVocabDrop } from "@/lib/ai/schemas";
 
 const DEFAULT_SETTINGS: EnglishSettings = {
@@ -53,7 +54,7 @@ interface EnglishState {
   confirmSelection: () => { ok: boolean; error?: string };
   setUserExample: (wordId: string, example: string) => void;
   rateFlashcard: (wordId: string, result: "know" | "unknown") => void;
-  nextFlashcard: () => void;
+  finishStudyCard: () => void;
   startQuiz: () => void;
   answerQuiz: (questionId: string, answer: string) => boolean;
   nextQuiz: () => void;
@@ -205,27 +206,21 @@ export const useEnglishStore = create<EnglishState>()(
           };
         }),
 
-      nextFlashcard: () =>
+      finishStudyCard: () =>
         set((s) => {
           if (!s.activeSession) return s;
-          const words = s.activeSession.selectedWordIds;
-          const nextIndex = s.activeSession.flashcardIndex + 1;
-          if (nextIndex >= words.length) {
-            const sessionWords = words
-              .map((id) => s.vocabulary.find((w) => w.id === id))
-              .filter(Boolean) as EnglishVocabWord[];
-            return {
-              quizQuestions: buildQuizQuestions(sessionWords),
-              activeSession: {
-                ...s.activeSession,
-                phase: "quiz",
-                quizProgress: 0,
-                quizCorrect: 0,
-              },
-            };
-          }
+          const sessionWords = s.activeSession.selectedWordIds
+            .map((id) => s.vocabulary.find((w) => w.id === id))
+            .filter(Boolean) as EnglishVocabWord[];
           return {
-            activeSession: { ...s.activeSession, flashcardIndex: nextIndex },
+            quizQuestions: buildQuizQuestions(sessionWords),
+            activeSession: {
+              ...s.activeSession,
+              phase: "quiz",
+              flashcardIndex: sessionWords.length,
+              quizProgress: 0,
+              quizCorrect: 0,
+            },
           };
         }),
 
@@ -287,10 +282,8 @@ export const useEnglishStore = create<EnglishState>()(
         const reviewAnswers: Record<string, boolean> = {};
 
         for (const word of words) {
-          const given = answers[word.id]?.trim().toLowerCase() ?? "";
-          const ok =
-            given === word.translationRu.toLowerCase() ||
-            given === word.term.toLowerCase();
+          const given = answers[word.id] ?? "";
+          const ok = matchesFinalReviewAnswer(given, word.term, word.translationRu);
           reviewAnswers[word.id] = ok;
           if (ok) correct += 1;
           else unknownTerms.push(word.term);

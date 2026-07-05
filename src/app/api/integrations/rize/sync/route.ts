@@ -26,13 +26,10 @@ export async function POST(req: Request) {
   const url = new URL(req.url);
   const lookbackHours = parseIntParam(url.searchParams.get("lookbackHours"), 168, 1, 24 * 30);
   const lookaheadDays = parseIntParam(url.searchParams.get("lookaheadDays"), 1, 0, 14);
-  const generate = url.searchParams.get("generate") === "true";
 
   try {
     const window = resolveSyncWindow(lookbackHours, lookaheadDays);
-    const { events, stats } = await syncRizeCalendarEvents(apiKey, window, {
-      generateIfEmpty: generate,
-    });
+    const { events, stats } = await syncRizeCalendarEvents(apiKey, window);
     return NextResponse.json({
       ok: true,
       count: events.length,

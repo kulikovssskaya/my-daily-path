@@ -11,16 +11,12 @@ export interface RizeSyncResult {
 }
 
 export async function pullRizeEvents(
-  lookbackHours = 168,
-  generate = false
+  lookbackHours = 168
 ): Promise<
   | { events: RizeCalendarEvent[]; count: number; stats: RizeFetchStats }
   | { error: string; status: number }
 > {
-  const params = new URLSearchParams({
-    lookbackHours: String(lookbackHours),
-  });
-  if (generate) params.set("generate", "true");
+  const params = new URLSearchParams({ lookbackHours: String(lookbackHours) });
 
   const res = await fetch(`/api/integrations/rize/sync?${params}`, {
     method: "POST",
@@ -35,9 +31,10 @@ export async function pullRizeEvents(
   if (!res.ok) {
     return { error: data.error ?? `Sync failed (${res.status})`, status: res.status };
   }
+  const events = data.events ?? [];
   return {
-    events: data.events ?? [],
-    count: data.count ?? 0,
+    events,
+    count: events.length,
     stats: data.stats ?? emptyStats(),
   };
 }
@@ -66,59 +63,27 @@ export function formatRizeSyncMessage(result: RizeSyncResult): string {
 
   const parts: string[] = [];
   if (result.added) parts.push(`+${result.added} new`);
-  if (result.updated) parts.push(`${result.updated} updated`);
-  if (result.skipped) parts.push(`${result.skipped} locked, skipped`);
+  if (result.skipped) parts.push(`${result.skipped} kept (your edits)`);
+
   if (parts.length > 0) {
     const s = result.stats;
-    if (s?.appBlocks) parts.push(`${s.appBlocks} apps`);
-    else if (s?.categoryBlocks) parts.push(`${s.categoryBlocks} categories`);
-    else if (s?.summaries && s.sources.includes("summaries")) {
-      parts.push(`${s.summaries} activity blocks`);
-    }
+    if (s?.timeEntries) parts.push(`${s.timeEntries} from Rize`);
     return parts.join(" · ");
   }
 
   const s = result.stats;
-  if (!s) return "Already up to date";
-
-  if (s.generated && s.mapped === 0 && !s.appBlocks && !s.categoryBlocks && s.generateError) {
-    return `Generate failed: ${s.generateError}`;
-  }
-
-  if (s.generated && s.mapped === 0 && !s.appBlocks && !s.categoryBlocks && s.totalRaw > 0) {
-    return `Found ${s.totalRaw} Rize entries but none fit the calendar (too short?)`;
-  }
-
-  if (s.generated && s.mapped === 0 && !s.appBlocks && !s.categoryBlocks) {
-    return "AI generation pending — try Sync now (app blocks are built automatically)";
-  }
-
-  if (s.appsTracked > 0 && s.totalRaw === 0) {
-    const hint = s.probeErrors[0] ? ` (${s.probeErrors[0]})` : "";
-    const top = s.topAppMinutes ? ` — top app ~${s.topAppMinutes} min` : "";
-    return `${s.appsTracked} apps tracked but no blocks created${top}${hint}`;
-  }
+  if (!s) return "Nothing new from Rize";
 
   if (s.totalRaw === 0) {
-    if (s.userEmail) {
-      return `0 entries for ${s.userEmail} (7d) — is Rize desktop running?`;
-    }
-    return "0 entries (7d) — open Rize desktop and enable tracking";
+    return "Nothing new from Rize for the last 7 days";
   }
 
-  if (s.mapped === 0 && s.tooShort > 0) {
-    return `${s.totalRaw} entries found, all under 1 min`;
-  }
-
-  return "Already up to date";
+  return "Nothing new — existing blocks kept";
 }
 
-export async function syncRizeToCalendar(
-  lookbackHours = 168,
-  generate = false
-): Promise<RizeSyncResult> {
+export async function syncRizeToCalendar(lookbackHours = 168): Promise<RizeSyncResult> {
   const { useScheduleStore } = await import("@/stores/scheduleStore");
-  const pulled = await pullRizeEvents(lookbackHours, generate);
+  const pulled = await pullRizeEvents(lookbackHours);
   if ("error" in pulled) {
     return {
       ok: false,

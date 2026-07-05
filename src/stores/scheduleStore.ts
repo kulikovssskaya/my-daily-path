@@ -120,7 +120,23 @@ export const useScheduleStore = create<ScheduleState>()(
           const ev = s.events.find((x) => x.id === id);
           if (!ev) return s;
           if (isLocked(ev) && patch.locked !== false) return s;
-          const next = { ...ev, ...patch, lastModifiedAt: touchTimestamp() };
+          const rizeTouched =
+            ev.meta?.rizeEntryId &&
+            (patch.title !== undefined ||
+              patch.start !== undefined ||
+              patch.end !== undefined ||
+              patch.category !== undefined ||
+              patch.status !== undefined)
+              ? true
+              : ev.meta?.rizeTouched;
+          const next = {
+            ...ev,
+            ...patch,
+            lastModifiedAt: touchTimestamp(),
+            meta: ev.meta
+              ? { ...ev.meta, ...(rizeTouched ? { rizeTouched: true } : {}) }
+              : ev.meta,
+          };
           if (patch.locked === false) {
             next.locked = false;
             next.lockedAt = undefined;
@@ -271,43 +287,38 @@ export const useScheduleStore = create<ScheduleState>()(
 
           for (const entry of entries) {
             const idx = events.findIndex((ev) => ev.meta?.rizeEntryId === entry.rizeEntryId);
-            const payload = {
-              title: entry.title,
-              category: entry.category,
-              start: entry.start,
-              end: entry.end,
-              status: "done" as const,
-              priority: 3 as const,
-              meta: {
-                ...(entry.track ? { track: entry.track } : {}),
-                rizeEntryId: entry.rizeEntryId,
-              },
-              notes: entry.notes,
-              lastModifiedAt: touchTimestamp(),
-            };
 
             if (idx >= 0) {
               const existing = events[idx];
-              if (isLocked(existing)) {
+              if (isLocked(existing) || existing.meta?.rizeTouched) {
                 skipped += 1;
                 continue;
               }
-              events[idx] = { ...existing, ...payload };
-              updated += 1;
-              changed = true;
-            } else {
-              events.push(
-                stampEvent(
-                  {
-                    ...payload,
-                    status: "done",
-                  },
-                  uid("ev")
-                )
-              );
-              added += 1;
-              changed = true;
+              // Keep user edits — never overwrite an existing Rize block on re-sync.
+              skipped += 1;
+              continue;
             }
+
+            events.push(
+              stampEvent(
+                {
+                  title: entry.title,
+                  category: entry.category,
+                  start: entry.start,
+                  end: entry.end,
+                  status: "done",
+                  priority: 3,
+                  meta: {
+                    ...(entry.track ? { track: entry.track } : {}),
+                    rizeEntryId: entry.rizeEntryId,
+                  },
+                  notes: entry.notes,
+                },
+                uid("ev")
+              )
+            );
+            added += 1;
+            changed = true;
           }
 
           if (!changed) return s;

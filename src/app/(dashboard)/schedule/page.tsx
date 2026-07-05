@@ -9,7 +9,7 @@ export default function SchedulePage() {
   return (
     <PageShell
       title="Schedule"
-      description="AI planner for today and tomorrow"
+      description="Pick any day to edit manually; AI planner for today and ahead"
       icon={<Calendar className="size-5" />}
     >
       <ScheduleWorkspace />

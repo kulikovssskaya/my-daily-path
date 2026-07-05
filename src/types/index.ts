@@ -48,7 +48,7 @@ export interface ScheduleEvent {
   priority: Priority;
   energy?: Energy;
   notes?: string;
-  meta?: { track?: string; rizeEntryId?: string };
+  meta?: { track?: string; rizeEntryId?: string; rizeTouched?: boolean };
   lastModifiedAt?: ISODate;
   locked?: boolean;
   lockedAt?: ISODate;

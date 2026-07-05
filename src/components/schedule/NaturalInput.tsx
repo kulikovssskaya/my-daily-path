@@ -42,6 +42,9 @@ export function NaturalInput() {
           <Sparkles className="size-4 text-primary" />
           Describe your day in your own words
         </label>
+        <p className="text-xs text-muted-foreground">
+          To fix a specific day, pick it below and edit — or describe a plan for today / ahead.
+        </p>
         <textarea
           value={value}
           onChange={(e) => setValue(e.target.value)}

@@ -346,7 +346,7 @@ function PhaseSteps() {
   const phase = useEnglishStore((s) => s.activeSession?.phase);
   const steps = [
     { key: "select", label: "Vocabulary" },
-    { key: "flashcards", label: "Flashcards" },
+    { key: "flashcards", label: "Study card" },
     { key: "quiz", label: "Practice" },
     { key: "review", label: "Final test" },
     { key: "complete", label: "Done" },

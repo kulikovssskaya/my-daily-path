@@ -16,9 +16,22 @@ export interface RizeTimeEntry {
   source: string | null;
   projectName: string | null;
   clientName: string | null;
+  /** Rize AI summary shown in the app (e.g. "Researched and Configured Cursor AI Agents"). */
+  entryTitle?: string | null;
+  /** Window titles with share % — stored in notes, not the calendar title. */
+  titleBreakdown?: RizeTitleShare[];
   kind: RizeEntryKind;
   status?: string | null;
 }
+
+export interface RizeTitleShare {
+  label: string;
+  percent: number;
+}
+
+export const MIN_TITLE_SHARE_PERCENT = 5;
+/** Rize Titles tab rarely shows app noise under ~2 min (e.g. background Telegram). */
+export const MIN_TELEGRAM_TITLE_SEC = 120;
 
 export interface RizeCalendarEvent {
   rizeEntryId: string;
@@ -59,35 +72,43 @@ export interface RizeFetchStats {
 type GraphqlResult<T> = { data: T | null; errors: string[] };
 
 const QUERIES = {
-  timeEntriesRich: `
-    query TimeEntries($startTime: ISO8601DateTime!, $endTime: ISO8601DateTime!) {
-      timeEntries(startTime: $startTime, endTime: $endTime) {
-        id
-        title
-        description
-        startTime
-        endTime
-        status
-        duration
-        client { name }
-        project { name }
-        task { name }
+  timeEntriesConnection: `
+    query TimeEntriesConn($startTime: ISO8601DateTime!, $endTime: ISO8601DateTime!, $first: Int) {
+      timeEntries(startTime: $startTime, endTime: $endTime, first: $first) {
+        edges {
+          node {
+            id
+            title
+            description
+            startTime
+            endTime
+            status
+            duration
+            client { name }
+            project { name }
+            task { name }
+          }
+        }
       }
     }
   `,
-  timeEntriesStatuses: `
-    query TimeEntries($startTime: ISO8601DateTime!, $endTime: ISO8601DateTime!, $statuses: [String!]) {
-      timeEntries(startTime: $startTime, endTime: $endTime, statuses: $statuses) {
-        id
-        title
-        description
-        startTime
-        endTime
-        status
-        duration
-        client { name }
-        project { name }
-        task { name }
+  timeEntriesConnectionStatuses: `
+    query TimeEntriesConn($startTime: ISO8601DateTime!, $endTime: ISO8601DateTime!, $statuses: [String!], $first: Int) {
+      timeEntries(startTime: $startTime, endTime: $endTime, statuses: $statuses, first: $first) {
+        edges {
+          node {
+            id
+            title
+            description
+            startTime
+            endTime
+            status
+            duration
+            client { name }
+            project { name }
+            task { name }
+          }
+        }
       }
     }
   `,
@@ -182,6 +203,21 @@ const QUERIES = {
         id
         appName
         timeSpent
+      }
+    }
+  `,
+  trackingEventsConnection: `
+    query TrackingEvents($startTime: ISO8601DateTime!, $endTime: ISO8601DateTime!, $first: Int) {
+      events(startTime: $startTime, endTime: $endTime, first: $first) {
+        edges {
+          node {
+            title
+            appName
+            url
+            startTime
+            endTime
+          }
+        }
       }
     }
   `,
@@ -306,6 +342,479 @@ function pickName(obj: Record<string, unknown> | null | undefined): string | nul
   return obj.name;
 }
 
+/** Rize AI often puts a long narrative in `title` — not the project tag shown in UI. */
+export function isRizeAiNarrative(text: string): boolean {
+  const t = text.trim();
+  if (t.length >= 72) return true;
+  return /^(conducted|dedicated|spent|worked|focused|reviewed|completed|engaged|utilized|performed|continued|researched|studied|implemented|explored|configured|developed|managed)\b/i.test(
+    t
+  );
+}
+
+/** Short label for Rize window titles — merges "Telegram (122757)" → "Telegram". */
+export function simplifyRizeTitleLabel(raw: string): string {
+  let t = raw.trim();
+  if (!t) return t;
+  t = t.replace(/\s*\(\d+\)\s*$/g, "");
+  t = t.replace(/\s*[—–-]\s*\(\d+\)\s*$/g, "");
+  t = t.replace(/\s*[—–-]\s*$/g, "");
+  return t.trim() || raw.trim();
+}
+
+function rawDurationSec(
+  raw: Record<string, unknown>,
+  startTime: string,
+  endTime: string
+): number {
+  const duration =
+    typeof raw.duration === "number"
+      ? raw.duration
+      : typeof raw.duration === "string"
+        ? Number.parseFloat(raw.duration)
+        : 0;
+  if (Number.isFinite(duration) && duration > 0) {
+    return normalizeRizeSeconds(duration, [duration]);
+  }
+  const start = new Date(startTime).getTime();
+  const end = new Date(endTime).getTime();
+  return Math.max(0, Math.round((end - start) / 1000));
+}
+
+export function parseTitleBreakdownFromRaw(
+  raw: Record<string, unknown>,
+  entryDurationSec?: number
+): RizeTitleShare[] {
+  const titles = raw.titles ?? raw.topTitles ?? raw.windowTitles;
+  if (!Array.isArray(titles) || titles.length === 0) return [];
+
+  const timeValues = titles.map((item) => {
+    if (typeof item === "string") return 0;
+    const row = item as Record<string, unknown>;
+    return numField(row, "timeSpent") || numField(row, "duration") || numField(row, "time");
+  });
+
+  const resolveTimeSec = (raw: number): number => {
+    if (raw <= 0) return 0;
+    const sumRaw = timeValues.reduce((a, b) => a + (b > 0 ? b : 0), 0);
+    if (entryDurationSec && entryDurationSec > 0 && sumRaw > 0) {
+      const errAsSec = Math.abs(sumRaw - entryDurationSec);
+      const errAsMin = Math.abs(sumRaw * 60 - entryDurationSec);
+      if (errAsMin <= errAsSec) return raw * 60;
+      return raw;
+    }
+    return normalizeRizeSeconds(raw, timeValues);
+  };
+
+  const parsed = titles
+    .map((item, i) => {
+      if (typeof item === "string") {
+        return { label: item.trim(), timeSec: 0, percentDirect: 0 };
+      }
+      const row = item as Record<string, unknown>;
+      const label =
+        typeof row.title === "string"
+          ? row.title.trim()
+          : typeof row.name === "string"
+            ? row.name.trim()
+            : "";
+      const timeRaw = timeValues[i] ?? 0;
+      const percentDirect = numField(row, "percentage") || numField(row, "percent");
+      return {
+        label,
+        timeSec: resolveTimeSec(timeRaw),
+        percentDirect,
+      };
+    })
+    .filter((x) => x.label.length > 0);
+
+  const totalFromTitles = parsed.reduce((sum, p) => sum + p.timeSec, 0);
+  // Rize percentages are relative to tracked title time, not wall-clock block length.
+  const totalSec = totalFromTitles > 0 ? totalFromTitles : entryDurationSec ?? 0;
+  if (totalSec <= 0 && parsed.every((p) => p.percentDirect <= 0)) return [];
+
+  const grouped = new Map<string, { timeSec: number; percentSum: number }>();
+  for (const p of parsed) {
+    const key = simplifyRizeTitleLabel(p.label);
+    const bucket = grouped.get(key) ?? { timeSec: 0, percentSum: 0 };
+    bucket.timeSec += p.timeSec;
+    if (p.percentDirect > 0) bucket.percentSum += p.percentDirect;
+    grouped.set(key, bucket);
+  }
+
+  const shares: RizeTitleShare[] = [];
+  for (const [label, bucket] of grouped) {
+    const percent =
+      bucket.percentSum > 0
+        ? bucket.percentSum
+        : totalSec > 0
+          ? (bucket.timeSec / totalSec) * 100
+          : 0;
+    if (shouldShowTitleShare(label, bucket.timeSec, percent)) {
+      shares.push({ label, percent });
+    }
+  }
+
+  shares.sort((a, b) => b.percent - a.percent);
+  return shares;
+}
+
+export function formatTitleBreakdown(shares: RizeTitleShare[]): string {
+  return shares
+    .map((s) => `${s.label.toLowerCase()} ${Math.round(s.percent)}%`)
+    .join(" + ");
+}
+
+/** Build Titles-tab-style shares from appsAndWebsites for one entry window. */
+export function buildTitleBreakdownFromApps(
+  apps: Record<string, unknown>[],
+  durationSec: number
+): RizeTitleShare[] {
+  if (apps.length === 0 || durationSec <= 0) return [];
+
+  const timeValues = apps.map((a) => readTimeSpent(a));
+  const sumRaw = timeValues.reduce((a, b) => a + (b > 0 ? b : 0), 0);
+  const resolveTimeSec = (raw: number): number => {
+    if (raw <= 0) return 0;
+    if (sumRaw > 0) {
+      const errAsSec = Math.abs(sumRaw - durationSec);
+      const errAsMin = Math.abs(sumRaw * 60 - durationSec);
+      if (errAsMin <= errAsSec) return raw * 60;
+      return raw;
+    }
+    return normalizeRizeSeconds(raw, timeValues);
+  };
+
+  const grouped = new Map<string, number>();
+
+  for (let i = 0; i < apps.length; i++) {
+    const label = labelFromAppRow(apps[i]);
+    const timeSec = resolveTimeSec(timeValues[i] ?? 0);
+    if (timeSec <= 0) continue;
+    grouped.set(label, (grouped.get(label) ?? 0) + timeSec);
+  }
+
+  return sharesFromGroupedSeconds(grouped, durationSec);
+}
+
+function eventDurationSec(ev: Record<string, unknown>): number {
+  const start = typeof ev.startTime === "string" ? new Date(ev.startTime).getTime() : 0;
+  const end = typeof ev.endTime === "string" ? new Date(ev.endTime).getTime() : 0;
+  return Math.max(0, Math.round((end - start) / 1000));
+}
+
+/** Person/chat windows on Telegram — counted in timeline but not in Rize Titles pool. */
+function isPersonalChatEvent(appName: string, winTitle: string): boolean {
+  if (!/telegram/i.test(appName)) return false;
+  const title = winTitle.trim();
+  if (!title) return false;
+  if (/^study$/i.test(title)) return false;
+  if (/^telegram(\s|\(|desktop|$)/i.test(title)) return false;
+  return true;
+}
+
+function isTelegramBrandedTitle(winTitle: string): boolean {
+  const title = winTitle.trim();
+  return /^telegram(\s|\(|desktop|$)/i.test(title);
+}
+
+function readAppsTotalSec(apps: Record<string, unknown>[]): number {
+  const allTimeValues = apps.map((a) => readTimeSpent(a));
+  let total = 0;
+  for (const spent of allTimeValues) {
+    if (spent <= 0) continue;
+    total += normalizeRizeSeconds(spent, allTimeValues);
+  }
+  return total;
+}
+
+function readAppSeconds(apps: Record<string, unknown>[], appPattern: RegExp): number {
+  const allTimeValues = apps.map((a) => readTimeSpent(a));
+  let total = 0;
+  for (const raw of apps) {
+    const appName = typeof raw.appName === "string" ? raw.appName : "";
+    if (!appPattern.test(appName)) continue;
+    const spent = readTimeSpent(raw);
+    if (spent <= 0) continue;
+    total += normalizeRizeSeconds(spent, allTimeValues);
+  }
+  return total;
+}
+
+function normalizeEventLabel(label: string, appName: string): string {
+  if (/telegram/i.test(appName) && !/^study$/i.test(label)) return "Telegram";
+  return label;
+}
+
+/**
+ * Rize Titles tab uses window titles from `events` (Study) with a title pool that
+ * excludes personal Telegram chats and adjusts for app-level overlap.
+ */
+export function buildTitleBreakdownFromEventsAndApps(
+  events: Record<string, unknown>[],
+  apps: Record<string, unknown>[],
+  entryDurationSec: number
+): RizeTitleShare[] {
+  if (events.length === 0 || entryDurationSec <= 0) return [];
+
+  let studyTitleSec = 0;
+  let telegramBrandedSec = 0;
+  let personalChatSec = 0;
+  let maxTelegramBrandedSeg = 0;
+  const grouped = new Map<string, number>();
+
+  for (const ev of events) {
+    const sec = eventDurationSec(ev);
+    if (sec <= 0) continue;
+    const appName = typeof ev.appName === "string" ? ev.appName.trim() : "App";
+    const winTitle = typeof ev.title === "string" ? ev.title.trim() : "";
+
+    if (isPersonalChatEvent(appName, winTitle)) personalChatSec += sec;
+    if (/telegram/i.test(appName) && isTelegramBrandedTitle(winTitle)) {
+      telegramBrandedSec += sec;
+      maxTelegramBrandedSeg = Math.max(maxTelegramBrandedSeg, sec);
+    }
+    if (/^study$/i.test(winTitle)) studyTitleSec += sec;
+
+    const label = normalizeEventLabel(labelFromEventRow(ev), appName);
+    grouped.set(label, (grouped.get(label) ?? 0) + sec);
+  }
+
+  const chromeAppSec = readAppSeconds(apps, /chrome/i);
+  const telegramAppSec = readAppSeconds(apps, /telegram/i);
+  const appsTotalSec = readAppsTotalSec(apps);
+  const telegramHeavy = isTelegramHeavyBlock(
+    entryDurationSec,
+    personalChatSec,
+    telegramAppSec
+  );
+
+  // Rize % denominator: apps total for normal blocks; adjusted pool for telegram-heavy.
+  const titlePool = telegramHeavy
+    ? entryDurationSec -
+      personalChatSec +
+      Math.max(0, telegramBrandedSec - chromeAppSec)
+    : appsTotalSec > 0
+      ? appsTotalSec
+      : entryDurationSec;
+
+  const totalSec = titlePool > 0 ? titlePool : entryDurationSec;
+
+  const shares: RizeTitleShare[] = [];
+  const used = new Set<string>();
+
+  const pushShare = (label: string, timeSec: number) => {
+    const key = label.toLowerCase();
+    if (used.has(key)) return;
+    const percent = totalSec > 0 ? (timeSec / totalSec) * 100 : 0;
+    if (shouldShowTitleShare(label, timeSec, percent)) {
+      shares.push({ label, percent });
+      used.add(key);
+    }
+  };
+
+  if (telegramHeavy) {
+    if (studyTitleSec > 0) pushShare("Study", studyTitleSec);
+    const telegramNumer = resolveTelegramHeavyNumerator(
+      maxTelegramBrandedSeg,
+      studyTitleSec,
+      chromeAppSec,
+      telegramAppSec
+    );
+    if (telegramNumer > 0) pushShare("Telegram", telegramNumer);
+    for (const [label, timeSec] of grouped) {
+      if (/^study$/i.test(label) || /^telegram$/i.test(label)) continue;
+      pushShare(label, timeSec);
+    }
+  } else {
+    for (const [label, timeSec] of grouped) {
+      pushShare(label, timeSec);
+    }
+  }
+
+  if (shares.length === 0) {
+    return sharesFromGroupedSeconds(grouped, entryDurationSec);
+  }
+
+  shares.sort((a, b) => b.percent - a.percent);
+  return shares;
+}
+
+/** Raw tracking events often carry real window titles (Rize Titles tab). */
+export function buildTitleBreakdownFromEvents(
+  events: Record<string, unknown>[],
+  durationSec: number
+): RizeTitleShare[] {
+  if (events.length === 0 || durationSec <= 0) return [];
+
+  const grouped = new Map<string, number>();
+  for (const ev of events) {
+    const start = typeof ev.startTime === "string" ? new Date(ev.startTime).getTime() : 0;
+    const end = typeof ev.endTime === "string" ? new Date(ev.endTime).getTime() : 0;
+    const sec = Math.max(0, Math.round((end - start) / 1000));
+    if (sec <= 0) continue;
+    const label = labelFromEventRow(ev);
+    grouped.set(label, (grouped.get(label) ?? 0) + sec);
+  }
+
+  return sharesFromGroupedSeconds(grouped, durationSec);
+}
+
+function normalizeGroupedSeconds(
+  grouped: Map<string, number>,
+  wallClockSec: number
+): Map<string, number> {
+  const tracked = [...grouped.values()].reduce((sum, sec) => sum + sec, 0);
+  if (tracked <= 0) return grouped;
+  if (wallClockSec > 0 && tracked > wallClockSec * 1.02) {
+    const scale = wallClockSec / tracked;
+    const scaled = new Map<string, number>();
+    for (const [label, sec] of grouped) {
+      scaled.set(label, sec * scale);
+    }
+    return scaled;
+  }
+  return grouped;
+}
+
+function isIgnorableTitleLabel(label: string): boolean {
+  return /^(search host|shell experience host|windows input experience|lock screen|start menu|unknown)$/i.test(
+    label.trim()
+  );
+}
+
+function shouldShowTitleShare(label: string, timeSec: number, percent: number): boolean {
+  if (percent < MIN_TITLE_SHARE_PERCENT) return false;
+  if (isIgnorableTitleLabel(label)) return false;
+  // Brief Telegram flicker under 1 min (e.g. 45 s at 4:14).
+  if (/telegram/i.test(label) && timeSec < 60) return false;
+  return true;
+}
+
+function isTelegramHeavyBlock(
+  entryDurationSec: number,
+  personalChatSec: number,
+  telegramAppSec: number
+): boolean {
+  return (
+    telegramAppSec >= entryDurationSec * 0.2 && personalChatSec >= 60
+  );
+}
+
+function resolveTelegramHeavyNumerator(
+  maxTelegramBrandedSeg: number,
+  studyTitleSec: number,
+  chromeAppSec: number,
+  telegramAppSec: number
+): number {
+  const scaledTelegramSec =
+    studyTitleSec > 0 && chromeAppSec > 0 && telegramAppSec > 0
+      ? (telegramAppSec * chromeAppSec) / (studyTitleSec + chromeAppSec + telegramAppSec)
+      : 0;
+  if (maxTelegramBrandedSeg >= MIN_TELEGRAM_TITLE_SEC) return maxTelegramBrandedSeg;
+  if (scaledTelegramSec >= 60) return scaledTelegramSec;
+  return 0;
+}
+
+function sharesFromGroupedSeconds(
+  grouped: Map<string, number>,
+  durationSec: number
+): RizeTitleShare[] {
+  const normalized = normalizeGroupedSeconds(grouped, durationSec);
+  const trackedSec = [...normalized.values()].reduce((sum, sec) => sum + sec, 0);
+  // Match Rize Titles tab: percents are of tracked activity, not the full block span.
+  const totalSec = trackedSec > 0 ? trackedSec : durationSec;
+  const shares: RizeTitleShare[] = [];
+  for (const [label, timeSec] of normalized) {
+    const percent = totalSec > 0 ? (timeSec / totalSec) * 100 : 0;
+    if (shouldShowTitleShare(label, timeSec, percent)) {
+      shares.push({ label, percent });
+    }
+  }
+  shares.sort((a, b) => b.percent - a.percent);
+  return shares;
+}
+
+export function mergeTitleBreakdownShares(shares: RizeTitleShare[]): RizeTitleShare[] {
+  const grouped = new Map<string, number>();
+  for (const s of shares) {
+    grouped.set(s.label, (grouped.get(s.label) ?? 0) + s.percent);
+  }
+  const merged = [...grouped.entries()]
+    .map(([label, percent]) => ({ label, percent }))
+    .filter((s) => s.percent >= MIN_TITLE_SHARE_PERCENT)
+    .sort((a, b) => b.percent - a.percent);
+  return merged;
+}
+
+/** When API hides tab titles, infer Study from browser share + entry summary. */
+export function applyStudyHeuristic(
+  shares: RizeTitleShare[],
+  entrySummary?: string | null
+): RizeTitleShare[] {
+  if (!entrySummary?.trim()) return shares;
+  if (shares.some((s) => /^study$/i.test(s.label))) return shares;
+  const hay = entrySummary.toLowerCase();
+  if (!/\bstudy\b|studied|research|learning|education|course/.test(hay)) return shares;
+
+  const mapped = shares.map((s) => {
+    if (/^(google chrome|chrome|microsoft edge|edge|firefox|browser)$/i.test(s.label)) {
+      return { ...s, label: "Study" };
+    }
+    return s;
+  });
+  return mergeTitleBreakdownShares(mapped);
+}
+
+function labelFromTrackingRow(winTitle: string, appName: string, url: string): string {
+  const hay = `${winTitle} ${url} ${appName}`.toLowerCase();
+
+  if (/\bstudy\b|learning|course|lesson|udemy|coursera|education|analyst/.test(hay)) {
+    return "Study";
+  }
+
+  if (winTitle && winTitle.toLowerCase() !== appName.toLowerCase()) {
+    const short = winTitle.split(/[|\-—–]/)[0]?.trim() ?? winTitle;
+    if (short.length > 0 && short.length <= 48) return simplifyRizeTitleLabel(short);
+  }
+
+  if (/telegram|t\.me/.test(hay) && /telegram/i.test(appName)) return "Telegram";
+  if (/\bcursor\b/.test(hay) && /\bcursor\b/i.test(appName)) return "Cursor";
+  if (/dashboard/.test(hay)) return "Dashboard";
+
+  if (/telegram/i.test(appName)) return "Telegram";
+  if (/\bcursor\b/i.test(appName)) return "Cursor";
+
+  return simplifyRizeTitleLabel(appName);
+}
+
+function labelFromAppRow(raw: Record<string, unknown>): string {
+  const appName = typeof raw.appName === "string" ? raw.appName.trim() : "App";
+  const winTitle = typeof raw.title === "string" ? raw.title.trim() : "";
+  const url =
+    (typeof raw.url === "string" ? raw.url : "") ||
+    (typeof raw.urlHost === "string" ? raw.urlHost : "");
+  return labelFromTrackingRow(winTitle, appName, url);
+}
+
+function labelFromEventRow(raw: Record<string, unknown>): string {
+  const appName = typeof raw.appName === "string" ? raw.appName.trim() : "App";
+  const winTitle = typeof raw.title === "string" ? raw.title.trim() : "";
+  const url = typeof raw.url === "string" ? raw.url : "";
+  return labelFromTrackingRow(winTitle, appName, url);
+}
+
+function trackingEventsHaveDistinctTitles(events: Record<string, unknown>[]): boolean {
+  return events.some((ev) => {
+    const appName = typeof ev.appName === "string" ? ev.appName.trim().toLowerCase() : "";
+    const winTitle = typeof ev.title === "string" ? ev.title.trim().toLowerCase() : "";
+    return winTitle.length > 0 && winTitle !== appName;
+  });
+}
+
+function syntheticTitlesFromBreakdown(shares: RizeTitleShare[]): Record<string, unknown>[] {
+  return shares.map((s) => ({ title: s.label, percentage: s.percent }));
+}
+
 function parseGenericTimeEntry(
   raw: Record<string, unknown>,
   kind: RizeEntryKind,
@@ -324,12 +833,15 @@ function parseGenericTimeEntry(
     (project.client as Record<string, unknown> | null) ??
     (taskProject.client as Record<string, unknown> | null);
 
-  const title = typeof raw.title === "string" ? raw.title : null;
+  const title = typeof raw.title === "string" ? raw.title.trim() : null;
   const description =
-    (typeof raw.description === "string" ? raw.description : null) ?? title;
+    typeof raw.description === "string" ? raw.description.trim() : null;
+  const projectTag = pickName(project) ?? pickName(task);
+  const durationSec = rawDurationSec(raw, startTime, endTime);
+  const titleBreakdown = parseTitleBreakdownFromRaw(raw, durationSec);
+  const entryTitle = title ?? description ?? null;
 
-  const projectName =
-    pickName(project) ?? pickName(task) ?? pickName(taskProject) ?? title;
+  const projectName = projectTag ?? "Activity";
 
   const duration =
     typeof raw.duration === "number"
@@ -340,13 +852,15 @@ function parseGenericTimeEntry(
 
   return {
     id: `${idPrefix}_${String(raw.id)}`,
-    description,
+    description: entryTitle,
     duration: Number.isFinite(duration) ? duration : null,
     startTime,
     endTime,
     source: kind,
     projectName,
     clientName: pickName(client),
+    entryTitle,
+    titleBreakdown: titleBreakdown.length > 0 ? titleBreakdown : undefined,
     kind,
     status: typeof raw.status === "string" ? raw.status : null,
   };
@@ -656,6 +1170,28 @@ async function appendActivityFallbacks(
       ? appsInWindow
       : await fetchAppsList(apiKey, todayWindow, probeErrors);
 
+  if (merged.length === 0) {
+    const categories = await tryQueryList<{ categories?: Record<string, unknown>[] }>(
+      apiKey,
+      "categories",
+      QUERIES.categories,
+      {
+        startTime: toRizeIso(todayWindow.start),
+        endTime: toRizeIso(todayWindow.end),
+      },
+      "categories",
+      probeErrors
+    );
+    const catEntries = buildCategoryUsageEntries(
+      categories,
+      todayWindow,
+      toDateOnly(todayWindow.end)
+    );
+    for (const entry of catEntries) merged.push(entry);
+    categoryBlocks = catEntries.length;
+    if (categoryBlocks > 0) sources.push("categories");
+  }
+
   let totalSecondsBudget: number | undefined;
   if (merged.length === 0 && todayApps.length > 0) {
     const total = await fetchTotalSummaryEntry(apiKey, todayWindow, probeErrors);
@@ -678,28 +1214,6 @@ async function appendActivityFallbacks(
     for (const entry of appEntries) merged.push(entry);
     appBlocks = appEntries.length;
     if (appBlocks > 0) sources.push("apps");
-  }
-
-  if (merged.length === 0) {
-    const categories = await tryQueryList<{ categories?: Record<string, unknown>[] }>(
-      apiKey,
-      "categories",
-      QUERIES.categories,
-      {
-        startTime: toRizeIso(todayWindow.start),
-        endTime: toRizeIso(todayWindow.end),
-      },
-      "categories",
-      probeErrors
-    );
-    const catEntries = buildCategoryUsageEntries(
-      categories,
-      todayWindow,
-      toDateOnly(todayWindow.end)
-    );
-    for (const entry of catEntries) merged.push(entry);
-    categoryBlocks = catEntries.length;
-    if (categoryBlocks > 0) sources.push("categories");
   }
 
   return { summaries, appBlocks, categoryBlocks, topAppMinutes };
@@ -794,15 +1308,350 @@ async function tryQueryList<T>(
   return Array.isArray(list) ? (list as Record<string, unknown>[]) : [];
 }
 
+function extractConnectionNodes(data: Record<string, unknown> | null, field: string): Record<string, unknown>[] {
+  if (!data) return [];
+  const conn = data[field];
+  if (Array.isArray(conn)) return conn as Record<string, unknown>[];
+  if (conn && typeof conn === "object" && "edges" in conn) {
+    const edges = (conn as { edges?: { node?: Record<string, unknown> }[] }).edges ?? [];
+    return edges.map((e) => e.node).filter((n): n is Record<string, unknown> => !!n);
+  }
+  return [];
+}
+
+function extractTimeEntryNodes(data: Record<string, unknown> | null, field: string): Record<string, unknown>[] {
+  if (!data) return [];
+  const conn = data[field];
+  if (Array.isArray(conn)) return conn as Record<string, unknown>[];
+  if (conn && typeof conn === "object") {
+    const c = conn as {
+      nodes?: Record<string, unknown>[];
+      edges?: { node?: Record<string, unknown> }[];
+    };
+    if (Array.isArray(c.nodes) && c.nodes.length > 0) {
+      return c.nodes.filter((n): n is Record<string, unknown> => !!n);
+    }
+    return extractConnectionNodes(data, field);
+  }
+  return [];
+}
+
+async function tryQueryConnection(
+  apiKey: string,
+  label: string,
+  query: string,
+  variables: Record<string, unknown>,
+  field: string,
+  probeErrors: string[]
+): Promise<Record<string, unknown>[]> {
+  const { data, errors } = await rizeGraphql<Record<string, unknown>>(apiKey, query, variables);
+  if (errors.length) {
+    probeErrors.push(`${label}: ${errors[0]}`);
+    return [];
+  }
+  return extractTimeEntryNodes(data, field);
+}
+
+const TIME_ENTRY_STATUS_LISTS: (string[] | undefined)[] = [
+  ["active", "pending", "generating", "tracking", "live", "approved"],
+  ["ACTIVE", "PENDING", "GENERATING", "TRACKING", "LIVE", "APPROVED"],
+  undefined,
+];
+
+/** Share of [s,e] not covered by existing ranges (0 = fully covered, 1 = empty). */
+function uncoveredFraction(
+  s: number,
+  e: number,
+  ranges: { start: number; end: number }[]
+): number {
+  const total = e - s;
+  if (total <= 0) return 0;
+  let covered = 0;
+  for (const r of ranges) {
+    const oStart = Math.max(s, r.start);
+    const oEnd = Math.min(e, r.end);
+    if (oEnd > oStart) covered += oEnd - oStart;
+  }
+  return Math.max(0, total - covered) / total;
+}
+
+/** Hourly Rize summaries for hours not covered by real time entries (e.g. evening). */
+async function fillGapSummaries(
+  apiKey: string,
+  window: RizeSyncWindow,
+  merged: RizeTimeEntry[],
+  probeErrors: string[]
+): Promise<number> {
+  let added = 0;
+  const existing = merged.map((e) => ({
+    start: new Date(e.startTime).getTime(),
+    end: new Date(e.endTime).getTime(),
+  }));
+
+  for (const day of enumerateLocalDays(window)) {
+    const summaries = await fetchSummaryEntries(apiKey, day, probeErrors);
+    for (const summary of summaries) {
+      const s = new Date(summary.startTime).getTime();
+      const e = new Date(summary.endTime).getTime();
+      if (e <= s) continue;
+      // Add hour if mostly uncovered (fixes evening gaps when day has partial entries).
+      if (uncoveredFraction(s, e, existing) < 0.25) continue;
+      if (merged.some((m) => m.id === summary.id)) continue;
+      merged.push(summary);
+      existing.push({ start: s, end: e });
+      added++;
+    }
+  }
+  return added;
+}
+
+function enumerateLocalDays(window: RizeSyncWindow): RizeSyncWindow[] {
+  const days: RizeSyncWindow[] = [];
+  const cursor = new Date(window.start);
+  cursor.setHours(0, 0, 0, 0);
+  const limit = new Date(window.end);
+  const now = new Date();
+
+  while (cursor <= limit) {
+    const start = new Date(cursor);
+    const end = new Date(cursor);
+    end.setHours(23, 59, 59, 999);
+    if (start > now) break;
+    if (end > now) end.setTime(now.getTime());
+    days.push({ start, end });
+    cursor.setDate(cursor.getDate() + 1);
+  }
+  return days;
+}
+
+async function fetchPrimaryTimeEntries(
+  apiKey: string,
+  window: RizeSyncWindow,
+  probeErrors: string[]
+): Promise<Record<string, unknown>[]> {
+  const seen = new Set<string>();
+  const all: Record<string, unknown>[] = [];
+  const first = 500;
+
+  const add = (rows: Record<string, unknown>[]) => {
+    for (const row of rows) {
+      const id = String(row.id ?? "");
+      if (!id || seen.has(id)) continue;
+      seen.add(id);
+      all.push(row);
+    }
+  };
+
+  const windowVars = {
+    startTime: toRizeIso(window.start),
+    endTime: toRizeIso(window.end),
+    first,
+  };
+
+  add(
+    await tryQueryConnection(
+      apiKey,
+      "timeEntries",
+      QUERIES.timeEntriesConnection,
+      windowVars,
+      "timeEntries",
+      probeErrors
+    )
+  );
+
+  for (const statuses of TIME_ENTRY_STATUS_LISTS.filter(Boolean) as string[][]) {
+    add(
+      await tryQueryConnection(
+        apiKey,
+        `timeEntries[${statuses.join(",")}]`,
+        QUERIES.timeEntriesConnectionStatuses,
+        { ...windowVars, statuses },
+        "timeEntries",
+        probeErrors
+      )
+    );
+  }
+
+  for (const day of enumerateLocalDays(window)) {
+    const dayVars = {
+      startTime: toRizeIso(day.start),
+      endTime: toRizeIso(day.end),
+      first,
+    };
+    const dateStr = toDateOnly(day.start);
+
+    add(
+      await tryQueryConnection(
+        apiKey,
+        `timeEntries@${dateStr}`,
+        QUERIES.timeEntriesConnection,
+        dayVars,
+        "timeEntries",
+        probeErrors
+      )
+    );
+
+    for (const statuses of TIME_ENTRY_STATUS_LISTS.filter(Boolean) as string[][]) {
+      add(
+        await tryQueryConnection(
+          apiKey,
+          `timeEntries@${dateStr}[${statuses.join(",")}]`,
+          QUERIES.timeEntriesConnectionStatuses,
+          { ...dayVars, statuses },
+          "timeEntries",
+          probeErrors
+        )
+      );
+    }
+  }
+
+  await enrichRawWithAppsTitleBreakdown(apiKey, all, probeErrors);
+  return all;
+}
+
+const trackingWindowCache = new Map<string, Record<string, unknown>[]>();
+
+async function fetchTrackingEventsForWindow(
+  apiKey: string,
+  startTime: string,
+  endTime: string,
+  probeErrors: string[]
+): Promise<Record<string, unknown>[]> {
+  const key = `ev|${startTime}|${endTime}`;
+  const cached = trackingWindowCache.get(key);
+  if (cached) return cached;
+
+  const rows = await tryQueryConnection(
+    apiKey,
+    "events",
+    QUERIES.trackingEventsConnection,
+    { startTime, endTime, first: 500 },
+    "events",
+    probeErrors
+  );
+  trackingWindowCache.set(key, rows);
+  return rows;
+}
+
+async function fetchAppsForWindow(
+  apiKey: string,
+  startTime: string,
+  endTime: string,
+  probeErrors: string[]
+): Promise<Record<string, unknown>[]> {
+  const key = `app|${startTime}|${endTime}`;
+  const cached = trackingWindowCache.get(key);
+  if (cached) return cached;
+
+  const variables = { startTime, endTime };
+  let rows = await tryQueryList<{ appsAndWebsites?: Record<string, unknown>[] }>(
+    apiKey,
+    "appsAndWebsites",
+    QUERIES.appsAndWebsites,
+    variables,
+    "appsAndWebsites",
+    probeErrors
+  );
+  if (rows.length === 0) {
+    rows = await tryQueryList<{ appsAndWebsites?: Record<string, unknown>[] }>(
+      apiKey,
+      "appsAndWebsites plain",
+      QUERIES.appsAndWebsitesPlain,
+      variables,
+      "appsAndWebsites",
+      probeErrors
+    );
+  }
+  trackingWindowCache.set(key, rows);
+  return rows;
+}
+
+async function buildTitleBreakdownForEntry(
+  apiKey: string,
+  row: Record<string, unknown>,
+  startTime: string,
+  endTime: string,
+  probeErrors: string[]
+): Promise<RizeTitleShare[]> {
+  const durationSec = rawDurationSec(row, startTime, endTime);
+  if (durationSec <= 0) return [];
+
+  const [apps, events] = await Promise.all([
+    fetchAppsForWindow(apiKey, startTime, endTime, probeErrors),
+    fetchTrackingEventsForWindow(apiKey, startTime, endTime, probeErrors),
+  ]);
+
+  // Window titles from `events` (Study, Telegram chats) match Rize Titles; apps only have app names.
+  let breakdown: RizeTitleShare[] = [];
+  if (events.length > 0 && trackingEventsHaveDistinctTitles(events)) {
+    breakdown = buildTitleBreakdownFromEventsAndApps(events, apps, durationSec);
+  } else if (apps.length > 0) {
+    breakdown = buildTitleBreakdownFromApps(apps, durationSec);
+  } else if (events.length > 0) {
+    breakdown = buildTitleBreakdownFromEvents(events, durationSec);
+  }
+
+  const summary =
+    (typeof row.title === "string" ? row.title : null) ??
+    (typeof row.description === "string" ? row.description : null);
+  return applyStudyHeuristic(breakdown, summary);
+}
+
+async function enrichRawWithAppsTitleBreakdown(
+  apiKey: string,
+  rows: Record<string, unknown>[],
+  probeErrors: string[]
+): Promise<void> {
+  if (rows.length === 0) return;
+  trackingWindowCache.clear();
+
+  const queue = [...rows];
+  const workers = Array.from({ length: Math.min(6, rows.length) }, async () => {
+    while (queue.length > 0) {
+      const row = queue.shift();
+      if (!row) break;
+      const startTime = row.startTime;
+      const endTime = row.endTime;
+      if (typeof startTime !== "string" || typeof endTime !== "string") continue;
+      if (Array.isArray(row.titles) && row.titles.length > 0) continue;
+
+      const breakdown = await buildTitleBreakdownForEntry(
+        apiKey,
+        row,
+        startTime,
+        endTime,
+        probeErrors
+      );
+      if (breakdown.length > 0) {
+        row.titles = syntheticTitlesFromBreakdown(breakdown);
+      }
+    }
+  });
+  await Promise.all(workers);
+}
+
 export function rizeCategoryFromProject(
   projectName: string | null,
-  description: string | null
+  description: string | null,
+  titleBreakdown?: RizeTitleShare[] | null
 ): EventCategory {
+  const labels = titleBreakdown?.map((t) => t.label).join(" ").toLowerCase() ?? "";
+  if (/study|training|research|learn|english|course|education|reading/.test(labels)) {
+    return "learning";
+  }
+
+  const tag = (projectName ?? "").toLowerCase();
+  if (/training|research|study|learn|english|course|education|reading/.test(tag)) return "learning";
+  if (/health|gym|massage|yoga|walk|doctor|sleep/.test(tag)) return "health";
+  if (/meal|lunch|dinner|breakfast|cook|food/.test(tag)) return "meal";
+  if (/rest|break|relax|read fiction|game/.test(tag)) return "rest";
+  if (/commute|travel|drive|metro|bus/.test(tag)) return "commute";
+
   const hay = `${projectName ?? ""} ${description ?? ""}`.toLowerCase();
+  if (/training|research|study|learn|english|course|education|reading|studied|researched|explored/.test(hay))
+    return "learning";
   if (/cursor|vscode|code|github|terminal|figma|notion|slack|discord|chrome|firefox|edge/.test(hay))
     return "work";
-  if (/english|duolingo|language|learn|study|course|math|ml|program|anysa/.test(hay))
-    return "learning";
   if (/work|job|career|client|meeting|dev|focus|tracked|activity/.test(hay)) return "work";
   if (/health|gym|massage|yoga|walk|doctor|sleep/.test(hay)) return "health";
   if (/meal|lunch|dinner|breakfast|cook|food/.test(hay)) return "meal";
@@ -821,14 +1670,17 @@ export function rizeTrackFromProject(projectName: string | null): string | undef
 }
 
 export function buildRizeEventTitle(entry: RizeTimeEntry): string {
-  const project = entry.projectName?.trim() || "Unassigned";
-  const desc = entry.description?.trim();
-  if (entry.kind === "session") {
-    if (desc && desc !== project) return `${project} — ${desc}`;
-    return `${project} session`;
+  if (entry.titleBreakdown && entry.titleBreakdown.length > 0) {
+    return formatTitleBreakdown(entry.titleBreakdown);
   }
-  if (desc && desc !== project) return `${project} — ${desc}`;
-  return project;
+
+  const tag = entry.projectName?.trim();
+  if (tag && tag !== "Activity") {
+    if (entry.kind === "session") return `${tag} session`;
+    return tag;
+  }
+  if (entry.kind === "session") return "Focus session";
+  return "Activity";
 }
 
 export function rizeIsoToNaive(iso: string): string {
@@ -840,13 +1692,15 @@ export function rizeIsoToNaive(iso: string): string {
 }
 
 export function entryDurationMs(entry: RizeTimeEntry): number {
-  if (entry.duration != null && entry.duration > 0) {
-    // Rize may return seconds or milliseconds — infer from magnitude.
-    return entry.duration > 10_000 ? entry.duration : entry.duration * 1000;
-  }
   const start = new Date(entry.startTime).getTime();
   const end = new Date(entry.endTime).getTime();
-  return Math.max(0, end - start);
+  const fromRange = Math.max(0, end - start);
+  if (fromRange > 0) return fromRange;
+
+  if (entry.duration != null && entry.duration > 0) {
+    return normalizeRizeSeconds(entry.duration, [entry.duration]) * 1000;
+  }
+  return 0;
 }
 
 export function mapRizeEntryToCalendarEvent(entry: RizeTimeEntry): RizeCalendarEvent | null {
@@ -858,12 +1712,22 @@ export function mapRizeEntryToCalendarEvent(entry: RizeTimeEntry): RizeCalendarE
 
   const notes: string[] = [`Rize ${entry.kind}`];
   if (entry.status) notes.push(`Status: ${entry.status}`);
+  if (entry.projectName && entry.projectName !== "Activity") {
+    notes.push(`Project: ${entry.projectName}`);
+  }
+  if (entry.entryTitle?.trim()) {
+    notes.push(`Summary: ${entry.entryTitle.trim()}`);
+  }
   if (entry.clientName) notes.push(`Client: ${entry.clientName}`);
 
   return {
     rizeEntryId: entry.id,
     title: buildRizeEventTitle(entry),
-    category: rizeCategoryFromProject(entry.projectName, entry.description),
+    category: rizeCategoryFromProject(
+      entry.projectName,
+      entry.entryTitle ?? entry.description,
+      entry.titleBreakdown
+    ),
     start: rizeIsoToNaive(entry.startTime),
     end: rizeIsoToNaive(entry.endTime),
     track: rizeTrackFromProject(entry.projectName),
@@ -947,25 +1811,7 @@ export async function fetchRizeTimeEntries(
 
   const user = await fetchCurrentUser(apiKey);
 
-  const timePlain = await tryQueryList<{ timeEntries?: Record<string, unknown>[] }>(
-    apiKey,
-    "timeEntries",
-    QUERIES.timeEntriesRich,
-    variables,
-    "timeEntries",
-    probeErrors
-  );
-  let timeEntriesRaw = timePlain;
-  if (timeEntriesRaw.length === 0) {
-    timeEntriesRaw = await tryQueryList<{ timeEntries?: Record<string, unknown>[] }>(
-      apiKey,
-      "timeEntries+statuses",
-      QUERIES.timeEntriesStatuses,
-      { ...variables, statuses: ["active", "pending", "generating"] },
-      "timeEntries",
-      probeErrors
-    );
-  }
+  const timeEntriesRaw = await fetchPrimaryTimeEntries(apiKey, window, probeErrors);
 
   const projectRich = await tryQueryList<{ projectTimeEntries?: Record<string, unknown>[] }>(
     apiKey,
@@ -1069,17 +1915,20 @@ export async function fetchRizeTimeEntries(
     merged.push(entry);
   }
 
+  const gapSummaries = await fillGapSummaries(apiKey, window, merged, probeErrors);
+  if (gapSummaries > 0) sources.push("summaries-gap");
+
   const inWindow = filterEntriesInWindow(merged, window);
-  let summaries = 0;
+  let summaries = gapSummaries;
   let appBlocks = 0;
   let categoryBlocks = 0;
   let topAppMinutes: number | undefined;
 
   if (inWindow.length === 0 && apps.length > 0) {
-    // Drop out-of-window API rows so app/category fallbacks are not skipped.
-    merged.splice(0, merged.length, ...inWindow);
+    merged.splice(0, merged.length);
 
-    const todayApps = await fetchAppsList(apiKey, resolveTodayWindow(), probeErrors);
+    const todayWindow = resolveTodayWindow();
+    const todayApps = await fetchAppsList(apiKey, todayWindow, probeErrors);
     const fallback = await appendActivityFallbacks(
       apiKey,
       window,
@@ -1088,7 +1937,7 @@ export async function fetchRizeTimeEntries(
       probeErrors,
       todayApps.length > 0 ? todayApps : apps
     );
-    summaries = fallback.summaries;
+    summaries += fallback.summaries;
     appBlocks = fallback.appBlocks;
     categoryBlocks = fallback.categoryBlocks;
     topAppMinutes = fallback.topAppMinutes;

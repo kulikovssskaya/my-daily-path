@@ -12,6 +12,9 @@ import {
   Repeat,
   Lock,
   LockOpen,
+  ChevronLeft,
+  ChevronRight,
+  CalendarDays,
 } from "lucide-react";
 import { useScheduleStore } from "@/stores/scheduleStore";
 import type { ScheduleEvent, EventStatus, EventCategory } from "@/types";
@@ -37,9 +40,111 @@ function timeOf(iso: string) {
 function withTime(iso: string, hhmm: string) {
   return `${iso.slice(0, 10)}T${hhmm}:00`;
 }
+const PAST_DAYS = 90;
+const FUTURE_DAYS = 14;
+
 function dayKey(d: Date) {
   const pad = (n: number) => String(n).padStart(2, "0");
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+}
+
+function addDays(base: Date, offset: number): Date {
+  const d = new Date(base);
+  d.setDate(base.getDate() + offset);
+  return d;
+}
+
+function dayTitle(date: Date, today: Date): string {
+  const key = dayKey(date);
+  if (key === dayKey(today)) return "Today";
+  if (key === dayKey(addDays(today, -1))) return "Yesterday";
+  if (key === dayKey(addDays(today, -2))) return "2 days ago";
+  if (key === dayKey(addDays(today, 1))) return "Tomorrow";
+  return date.toLocaleDateString("en-US", { weekday: "long" });
+}
+
+function DayPicker({
+  selected,
+  min,
+  max,
+  today,
+  onChange,
+}: {
+  selected: Date;
+  min: Date;
+  max: Date;
+  today: Date;
+  onChange: (d: Date) => void;
+}) {
+  const minKey = dayKey(min);
+  const maxKey = dayKey(max);
+  const selectedKey = dayKey(selected);
+  const todayKey = dayKey(today);
+  const canPrev = selectedKey > minKey;
+  const canNext = selectedKey < maxKey;
+  const title = dayTitle(selected, today);
+
+  return (
+    <div className="flex flex-wrap items-center justify-end gap-2">
+      {selectedKey !== todayKey && (
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          className="h-8 text-xs"
+          onClick={() => onChange(new Date(today))}
+        >
+          Today
+        </Button>
+      )}
+      <div className="flex items-center gap-1">
+      <Button
+        type="button"
+        variant="outline"
+        size="icon"
+        className="size-8 shrink-0"
+        disabled={!canPrev}
+        onClick={() => onChange(addDays(selected, -1))}
+        aria-label="Previous day"
+      >
+        <ChevronLeft className="size-4" />
+      </Button>
+
+      <label className="relative flex min-w-[10.5rem] cursor-pointer items-center justify-center gap-2 rounded-lg border bg-background px-3 py-1.5 text-sm font-medium hover:bg-accent/50">
+        <CalendarDays className="size-4 shrink-0 text-muted-foreground" />
+        <span className="truncate">{title}</span>
+        <span className="truncate text-xs font-normal text-muted-foreground">
+          {selected.toLocaleDateString("en-US", { day: "numeric", month: "short" })}
+        </span>
+        <input
+          type="date"
+          value={selectedKey}
+          min={minKey}
+          max={maxKey}
+          onChange={(e) => {
+            if (!e.target.value) return;
+            const [y, m, d] = e.target.value.split("-").map(Number);
+            onChange(new Date(y, m - 1, d));
+          }}
+          className="absolute inset-0 cursor-pointer opacity-0"
+          aria-label="Pick a day"
+        />
+      </label>
+
+      <Button
+        type="button"
+        variant="outline"
+        size="icon"
+        className="size-8 shrink-0"
+        disabled={!canNext}
+        onClick={() => onChange(addDays(selected, 1))}
+        aria-label="Next day"
+      >
+        <ChevronRight className="size-4" />
+      </Button>
+      </div>
+    </div>
+  );
 }
 
 /** Detect meal from title when AI forgot to set category. */
@@ -274,7 +379,7 @@ function DayColumn({ title, date }: { title: string; date: Date }) {
 
       {timeline.length === 0 ? (
         <p className="rounded-lg border border-dashed px-3 py-6 text-center text-sm text-muted-foreground">
-          Empty. Describe your day above and hit “Generate plan”.
+          Empty. Add blocks manually below or sync from Calendar / Rize.
         </p>
       ) : (
         <div className="space-y-2">
@@ -294,25 +399,36 @@ function DayColumn({ title, date }: { title: string; date: Date }) {
 
 export function Agenda() {
   const [mounted, setMounted] = React.useState(false);
+  const [selected, setSelected] = React.useState<Date>(() => new Date());
   React.useEffect(() => setMounted(true), []);
 
   const today = new Date();
-  const tomorrow = new Date();
-  tomorrow.setDate(today.getDate() + 1);
+  const min = addDays(today, -PAST_DAYS);
+  const max = addDays(today, FUTURE_DAYS);
 
   if (!mounted) {
     return (
-      <div className="grid gap-4 lg:grid-cols-2">
-        <div className="h-48 animate-pulse rounded-xl border bg-card" />
+      <div className="space-y-3">
+        <div className="h-9 w-56 animate-pulse rounded-lg bg-muted" />
         <div className="h-48 animate-pulse rounded-xl border bg-card" />
       </div>
     );
   }
 
   return (
-    <div className="grid gap-4 lg:grid-cols-2">
-      <DayColumn title="Today" date={today} />
-      <DayColumn title="Tomorrow" date={tomorrow} />
+    <div className="space-y-3">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <p className="text-sm text-muted-foreground">Pick a day and edit manually</p>
+        <DayPicker
+          selected={selected}
+          min={min}
+          max={max}
+          today={today}
+          onChange={setSelected}
+        />
+      </div>
+
+      <DayColumn title={dayTitle(selected, today)} date={selected} />
     </div>
   );
 }
