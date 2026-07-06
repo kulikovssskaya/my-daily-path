@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   applyStudyHeuristic,
+  buildTitleDetailsFromEvents,
   buildRizeEventTitle,
   buildTitleBreakdownFromApps,
   buildTitleBreakdownFromEvents,
@@ -12,6 +13,10 @@ import {
   parseTitleBreakdownFromRaw,
   rizeCategoryFromProject,
   rizeTrackFromProject,
+  formatRizeTitleDetailsNotes,
+  isSyntheticRizeEntryId,
+  isTimelineRizeEntry,
+  uncoveredFraction,
   type RizeTimeEntry,
 } from "@/lib/integrations/rize";
 
@@ -333,7 +338,7 @@ describe("rize integration", () => {
     expect(formatTitleBreakdown(breakdown)).toBe("study 75% + telegram 18%");
   });
 
-  it("uses titles tab shares for calendar title, not AI summary", () => {
+  it("prefers Rize timeline summary over titles tab shares", () => {
     expect(
       buildRizeEventTitle({
         ...baseEntry,
@@ -345,16 +350,16 @@ describe("rize integration", () => {
           { label: "Telegram", percent: 18 },
         ],
       })
-    ).toBe("study 75% + telegram 18%");
+    ).toBe("Developed Cursor Agents Code and Researched AI topics");
   });
 
-  it("falls back to project tag when titles are missing", () => {
+  it("falls back to project tag when narrative is missing", () => {
     expect(
       buildRizeEventTitle({
         ...baseEntry,
         kind: "time",
         projectName: "Training",
-        entryTitle: "Developed Cursor Agents Code and Research",
+        entryTitle: null,
         titleBreakdown: undefined,
       })
     ).toBe("Training");
@@ -366,21 +371,69 @@ describe("rize integration", () => {
     expect(ev?.category).toBe("learning");
   });
 
-  it("keeps AI summary in notes only", () => {
+  it("uses Rize narrative as title and title details in notes", () => {
     const ev = mapRizeEntryToCalendarEvent({
       ...baseEntry,
       kind: "time",
       projectName: "Training",
-      entryTitle: "Developed Cursor Agents Code and Research",
-      titleBreakdown: [
-        { label: "Study", percent: 42 },
-        { label: "Cursor Agents", percent: 17 },
+      entryTitle:
+        "Progressed through several lessons of the Generation Python beginner course",
+      titleDetails: [
+        {
+          label: '"Поколение Python": курс для начинающих: урок Поиск ошибок…',
+          seconds: 180,
+          percent: 16,
+        },
+        {
+          label: '"Поколение Python": курс для начинающих: урок break, continue…',
+          seconds: 60,
+          percent: 8,
+        },
       ],
     });
-    expect(ev?.title).toBe("study 42% + cursor agents 17%");
-    expect(ev?.notes).toContain("Summary: Developed Cursor Agents Code and Research");
-    expect(ev?.notes).toContain("Project: Training");
+    expect(ev?.title).toContain("Generation Python");
+    expect(ev?.notes).toContain("Tag: Training");
+    expect(ev?.notes).toContain("Titles:");
+    expect(ev?.notes).toContain("Поколение Python");
+    expect(ev?.notes).toContain("3 min (16%)");
     expect(ev?.category).toBe("learning");
+  });
+
+  it("keeps Training as learning even when summary mentions code", () => {
+    expect(
+      rizeCategoryFromProject(
+        "Training",
+        "Progressed through lessons focusing on code review techniques",
+        [{ label: "Study", percent: 80 }]
+      )
+    ).toBe("learning");
+  });
+
+  it("builds title details from raw window titles", () => {
+    const start = "2026-07-05T14:37:00";
+    const t = (offsetSec: number) =>
+      new Date(new Date(start).getTime() + offsetSec * 1000).toISOString();
+
+    const details = buildTitleDetailsFromEvents(
+      [
+        {
+          appName: "Google Chrome",
+          title: '"Поколение Python": курс для начинающих: урок Поиск ошибок…',
+          startTime: start,
+          endTime: t(180),
+        },
+        {
+          appName: "Google Chrome",
+          title: '"Поколение Python": курс для начинающих: урок break, continue…',
+          startTime: t(180),
+          endTime: t(240),
+        },
+      ],
+      240
+    );
+
+    expect(details[0]?.label).toContain("Поколение Python");
+    expect(details[0]?.seconds).toBe(180);
   });
 
   it("skips very short entries", () => {
@@ -414,5 +467,37 @@ describe("rize integration", () => {
       }
     );
     expect(filtered).toHaveLength(1);
+  });
+
+  it("detects uncovered calendar gaps for summary fill", () => {
+    const hourStart = Date.parse("2026-07-05T13:00:00.000Z");
+    const hourEnd = Date.parse("2026-07-05T14:00:00.000Z");
+    const noonBlock = {
+      start: Date.parse("2026-07-05T12:19:00.000Z"),
+      end: Date.parse("2026-07-05T12:39:00.000Z"),
+    };
+
+    expect(uncoveredFraction(hourStart, hourEnd, [noonBlock])).toBe(1);
+    expect(uncoveredFraction(hourStart, hourEnd, [])).toBe(1);
+
+    const mostlyCovered = {
+      start: hourStart,
+      end: hourStart + 55 * 60 * 1000,
+    };
+    expect(uncoveredFraction(hourStart, hourEnd, [mostlyCovered])).toBeLessThan(0.1);
+  });
+
+  it("flags synthetic rize ids", () => {
+    expect(isSyntheticRizeEntryId("summary_2026-07-05T13:00:00Z")).toBe(true);
+    expect(isSyntheticRizeEntryId("app_day_0_chrome")).toBe(true);
+    expect(isSyntheticRizeEntryId("time_abc123")).toBe(false);
+
+    expect(
+      isTimelineRizeEntry({
+        ...baseEntry,
+        id: "time_1",
+        kind: "time",
+      })
+    ).toBe(true);
   });
 });

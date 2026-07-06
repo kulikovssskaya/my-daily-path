@@ -58,7 +58,7 @@ export function RizeSyncBar({ className }: { className?: string }) {
         Sync from Rize
       </Button>
       <span className="text-xs text-muted-foreground">
-        Adds new blocks only — edits and deletes are kept
+        Replaces Rize blocks in the last 7 days · titles in event notes
       </span>
       {message && (
         <span className="max-w-xl text-xs text-muted-foreground">{message}</span>

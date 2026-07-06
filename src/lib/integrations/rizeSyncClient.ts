@@ -1,13 +1,17 @@
 import type { RizeCalendarEvent, RizeFetchStats } from "@/lib/integrations/rize";
+import { getStoredSyncKey, isSyncEnabled } from "@/lib/sync/syncAuthClient";
+import { pushToServer } from "@/lib/sync/syncRunner";
 
 export interface RizeSyncResult {
   ok: boolean;
   added: number;
   updated: number;
+  removed: number;
   skipped: number;
   count: number;
   stats?: RizeFetchStats;
   error?: string;
+  pushed?: boolean;
 }
 
 export async function pullRizeEvents(
@@ -62,23 +66,21 @@ export function formatRizeSyncMessage(result: RizeSyncResult): string {
   if (!result.ok) return result.error ?? "Sync failed";
 
   const parts: string[] = [];
-  if (result.added) parts.push(`+${result.added} new`);
-  if (result.skipped) parts.push(`${result.skipped} kept (your edits)`);
-
-  if (parts.length > 0) {
-    const s = result.stats;
-    if (s?.timeEntries) parts.push(`${s.timeEntries} from Rize`);
-    return parts.join(" · ");
-  }
+  if (result.removed) parts.push(`replaced ${result.removed}`);
+  if (result.added) parts.push(`+${result.added} from Rize`);
+  if (result.skipped) parts.push(`${result.skipped} locked`);
+  if (result.pushed) parts.push("saved to cloud");
 
   const s = result.stats;
-  if (!s) return "Nothing new from Rize";
+  if (s?.timeEntries) parts.push(`${s.timeEntries} Rize entries`);
 
-  if (s.totalRaw === 0) {
-    return "Nothing new from Rize for the last 7 days";
+  if (parts.length > 0) return parts.join(" · ");
+
+  if (!s || result.count === 0) {
+    return "Rize returned 0 entries for this period — check API key or Rize timeline";
   }
 
-  return "Nothing new — existing blocks kept";
+  return `Refreshed ${result.count} blocks from Rize`;
 }
 
 export async function syncRizeToCalendar(lookbackHours = 168): Promise<RizeSyncResult> {
@@ -89,17 +91,36 @@ export async function syncRizeToCalendar(lookbackHours = 168): Promise<RizeSyncR
       ok: false,
       added: 0,
       updated: 0,
+      removed: 0,
       skipped: 0,
       count: 0,
       error: pulled.error,
     };
   }
-  const merge = useScheduleStore.getState().mergeRizeEvents(pulled.events);
+
+  useScheduleStore.getState().removeInternalRizeEvents();
+  const { added, removed, skipped } = useScheduleStore
+    .getState()
+    .replaceRizeEvents(pulled.events, lookbackHours);
+
+  let pushed = false;
+  if (isSyncEnabled()) {
+    const key = getStoredSyncKey();
+    if (key) {
+      const saved = await pushToServer(key);
+      pushed = Boolean(saved?.updatedAt);
+    }
+  }
+
   return {
     ok: true,
     count: pulled.count,
     stats: pulled.stats,
-    ...merge,
+    added,
+    updated: 0,
+    removed,
+    skipped,
+    pushed,
   };
 }
 

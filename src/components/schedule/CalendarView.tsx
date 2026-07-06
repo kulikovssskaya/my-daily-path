@@ -104,6 +104,15 @@ function EditModal({
           </div>
         </div>
 
+        {event.notes ? (
+          <div className="space-y-1.5">
+            <label className="text-xs text-muted-foreground">Notes (Rize titles)</label>
+            <pre className="max-h-48 overflow-auto whitespace-pre-wrap rounded-lg border bg-muted/30 px-3 py-2 text-xs leading-relaxed">
+              {event.notes}
+            </pre>
+          </div>
+        ) : null}
+
         <div className="flex justify-between pt-1">
           <Button
             variant="ghost"

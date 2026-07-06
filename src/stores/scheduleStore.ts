@@ -8,6 +8,7 @@ import type {
 } from "@/types";
 import type { AIEvent, AIHabit } from "@/lib/ai/schemas";
 import type { RizeCalendarEvent } from "@/lib/integrations/rize";
+import { isSyntheticRizeEntryId } from "@/lib/integrations/rize";
 import { uid } from "@/lib/utils";
 import { eventDayKey, todayKeyFromIso } from "@/lib/planSafety";
 import {
@@ -48,6 +49,12 @@ interface ScheduleState {
     updated: number;
     skipped: number;
   };
+  /** Drop Rize blocks in lookback window and re-import from API (fixes stale titles). */
+  replaceRizeEvents: (
+    entries: RizeCalendarEvent[],
+    lookbackHours: number
+  ) => { added: number; removed: number; skipped: number };
+  removeInternalRizeEvents: () => number;
   undo: () => void;
   runProtectionCheck: () => number;
 }
@@ -72,6 +79,21 @@ const seedHabits: Habit[] = [
 
 const snap = (s: Snapshot): Snapshot => ({ events: s.events, habits: s.habits });
 const pushHistory = (s: ScheduleState) => [...s.past, snap(s)].slice(-30);
+
+function lookbackStartIso(hours: number): string {
+  const d = new Date();
+  d.setHours(d.getHours() - hours);
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(
+    d.getHours()
+  )}:${pad(d.getMinutes())}:00`;
+}
+
+/** Old bad imports without rizeEntryId (e.g. "google chrome 66%"). */
+function looksLikeStaleRizeImport(ev: ScheduleEvent): boolean {
+  if (ev.meta?.rizeEntryId) return false;
+  return /\d+\s*%/.test(ev.title) && /chrome|telegram|study|cursor|edge|firefox/i.test(ev.title);
+}
 
 function habitFromAI(h: AIHabit): Habit {
   return {
@@ -294,8 +316,22 @@ export const useScheduleStore = create<ScheduleState>()(
                 skipped += 1;
                 continue;
               }
-              // Keep user edits — never overwrite an existing Rize block on re-sync.
-              skipped += 1;
+              events[idx] = {
+                ...existing,
+                title: entry.title,
+                category: entry.category,
+                start: entry.start,
+                end: entry.end,
+                notes: entry.notes,
+                meta: {
+                  ...existing.meta,
+                  ...(entry.track ? { track: entry.track } : {}),
+                  rizeEntryId: entry.rizeEntryId,
+                },
+                lastModifiedAt: touchTimestamp(),
+              };
+              updated += 1;
+              changed = true;
               continue;
             }
 
@@ -326,6 +362,86 @@ export const useScheduleStore = create<ScheduleState>()(
         });
 
         return { added, updated, skipped };
+      },
+
+      replaceRizeEvents: (entries, lookbackHours) => {
+        let added = 0;
+        let removed = 0;
+        let skipped = 0;
+        const windowStart = lookbackStartIso(lookbackHours);
+        const lockedIds = new Set<string>();
+
+        set((s) => {
+          const kept: ScheduleEvent[] = [];
+
+          for (const ev of s.events) {
+            const inWindow = ev.start >= windowStart;
+            const rizeId = ev.meta?.rizeEntryId;
+            const stale = looksLikeStaleRizeImport(ev);
+
+            if (!inWindow || (!rizeId && !stale)) {
+              kept.push(ev);
+              continue;
+            }
+
+            if (isLocked(ev)) {
+              kept.push(ev);
+              if (rizeId) lockedIds.add(rizeId);
+              skipped += 1;
+              continue;
+            }
+
+            removed += 1;
+          }
+
+          for (const entry of entries) {
+            if (lockedIds.has(entry.rizeEntryId)) {
+              skipped += 1;
+              continue;
+            }
+            kept.push(
+              stampEvent(
+                {
+                  title: entry.title,
+                  category: entry.category,
+                  start: entry.start,
+                  end: entry.end,
+                  status: "done",
+                  priority: 3,
+                  meta: {
+                    ...(entry.track ? { track: entry.track } : {}),
+                    rizeEntryId: entry.rizeEntryId,
+                  },
+                  notes: entry.notes,
+                },
+                uid("ev")
+              )
+            );
+            added += 1;
+          }
+
+          return { past: pushHistory(s), events: kept };
+        });
+
+        return { added, removed, skipped };
+      },
+
+      removeInternalRizeEvents: () => {
+        let removed = 0;
+        set((s) => {
+          const next = s.events.filter((ev) => {
+            const rizeId = ev.meta?.rizeEntryId;
+            if (!rizeId) return true;
+            if (isSyntheticRizeEntryId(rizeId)) {
+              removed += 1;
+              return false;
+            }
+            return true;
+          });
+          if (removed === 0) return s;
+          return { past: pushHistory(s), events: next };
+        });
+        return removed;
       },
 
       undo: () =>

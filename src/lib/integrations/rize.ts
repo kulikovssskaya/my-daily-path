@@ -20,12 +20,21 @@ export interface RizeTimeEntry {
   entryTitle?: string | null;
   /** Window titles with share % — stored in notes, not the calendar title. */
   titleBreakdown?: RizeTitleShare[];
+  /** Full Titles-tab rows (lesson/page names + minutes). */
+  titleDetails?: RizeTitleDetail[];
   kind: RizeEntryKind;
   status?: string | null;
 }
 
 export interface RizeTitleShare {
   label: string;
+  percent: number;
+}
+
+/** One row from Rize Titles tab — full window title + duration. */
+export interface RizeTitleDetail {
+  label: string;
+  seconds: number;
   percent: number;
 }
 
@@ -285,6 +294,10 @@ const GENERATE_MUTATIONS = [
 ];
 
 const SUMMARY_BUCKET_SIZES = ["hour", "HalfHour", "15min", "day"];
+/** Finer buckets first — fills afternoon gaps between sparse Rize time entries. */
+const GAP_FILL_BUCKET_SIZES = ["15min", "HalfHour", "hour"];
+const MIN_UNCOVERED_GAP_MS = 10 * 60 * 1000;
+const MIN_UNCOVERED_GAP_FRACTION = 0.1;
 const GENERATE_POLL_MS = [3000, 5000, 8000, 12000];
 
 function sleep(ms: number) {
@@ -462,6 +475,75 @@ export function formatTitleBreakdown(shares: RizeTitleShare[]): string {
   return shares
     .map((s) => `${s.label.toLowerCase()} ${Math.round(s.percent)}%`)
     .join(" + ");
+}
+
+export function formatRizeTitleDetailsNotes(details: RizeTitleDetail[]): string {
+  return details
+    .map((d) => {
+      const mins = Math.round(d.seconds / 60);
+      const minLabel = mins < 1 ? "<1 min" : `${mins} min`;
+      return `• ${d.label} — ${minLabel} (${Math.round(d.percent)}%)`;
+    })
+    .join("\n");
+}
+
+/** Prefer the raw browser tab title (Rize Titles tab), not collapsed labels. */
+function rawWindowTitleFromEvent(raw: Record<string, unknown>): string {
+  const appName = typeof raw.appName === "string" ? raw.appName.trim() : "";
+  const winTitle = typeof raw.title === "string" ? raw.title.trim() : "";
+  if (winTitle && winTitle.toLowerCase() !== appName.toLowerCase()) {
+    return winTitle;
+  }
+  return labelFromEventRow(raw);
+}
+
+/** Titles-tab rows with full window names and durations. */
+export function buildTitleDetailsFromEvents(
+  events: Record<string, unknown>[],
+  durationSec: number
+): RizeTitleDetail[] {
+  if (events.length === 0 || durationSec <= 0) return [];
+
+  const grouped = new Map<string, number>();
+  for (const ev of events) {
+    const sec = eventDurationSec(ev);
+    if (sec <= 0) continue;
+    const label = rawWindowTitleFromEvent(ev);
+    if (isIgnorableTitleLabel(label)) continue;
+    grouped.set(label, (grouped.get(label) ?? 0) + sec);
+  }
+
+  const normalized = normalizeGroupedSeconds(grouped, durationSec);
+  const trackedSec = [...normalized.values()].reduce((sum, sec) => sum + sec, 0);
+  const totalSec = trackedSec > 0 ? trackedSec : durationSec;
+  const details: RizeTitleDetail[] = [];
+
+  for (const [label, timeSec] of normalized) {
+    const percent = totalSec > 0 ? (timeSec / totalSec) * 100 : 0;
+    if (shouldShowTitleShare(label, timeSec, percent)) {
+      details.push({ label, seconds: timeSec, percent });
+    }
+  }
+
+  details.sort((a, b) => b.seconds - a.seconds);
+  return details;
+}
+
+function buildTitleDetailsFromApps(
+  apps: Record<string, unknown>[],
+  durationSec: number
+): RizeTitleDetail[] {
+  const shares = buildTitleBreakdownFromApps(apps, durationSec);
+  const timeValues = apps.map((a) => readTimeSpent(a));
+  const details: RizeTitleDetail[] = [];
+  for (const share of shares) {
+    const app = apps.find((a) => labelFromAppRow(a).toLowerCase() === share.label.toLowerCase());
+    const raw = app ? readTimeSpent(app) : 0;
+    const seconds =
+      raw > 0 ? normalizeRizeSeconds(raw, timeValues) : (share.percent / 100) * durationSec;
+    details.push({ label: share.label, seconds, percent: share.percent });
+  }
+  return details.sort((a, b) => b.seconds - a.seconds);
 }
 
 /** Build Titles-tab-style shares from appsAndWebsites for one entry window. */
@@ -815,6 +897,21 @@ function syntheticTitlesFromBreakdown(shares: RizeTitleShare[]): Record<string, 
   return shares.map((s) => ({ title: s.label, percentage: s.percent }));
 }
 
+function parseTitleDetailsFromRaw(raw: Record<string, unknown>): RizeTitleDetail[] {
+  if (!Array.isArray(raw.titleDetails)) return [];
+  const out: RizeTitleDetail[] = [];
+  for (const row of raw.titleDetails) {
+    if (!row || typeof row !== "object") continue;
+    const r = row as Record<string, unknown>;
+    const label = typeof r.label === "string" ? r.label.trim() : "";
+    const seconds = typeof r.seconds === "number" ? r.seconds : 0;
+    const percent = typeof r.percent === "number" ? r.percent : 0;
+    if (!label || seconds <= 0) continue;
+    out.push({ label, seconds, percent });
+  }
+  return out;
+}
+
 function parseGenericTimeEntry(
   raw: Record<string, unknown>,
   kind: RizeEntryKind,
@@ -839,6 +936,7 @@ function parseGenericTimeEntry(
   const projectTag = pickName(project) ?? pickName(task);
   const durationSec = rawDurationSec(raw, startTime, endTime);
   const titleBreakdown = parseTitleBreakdownFromRaw(raw, durationSec);
+  const titleDetails = parseTitleDetailsFromRaw(raw);
   const entryTitle = title ?? description ?? null;
 
   const projectName = projectTag ?? "Activity";
@@ -861,6 +959,7 @@ function parseGenericTimeEntry(
     clientName: pickName(client),
     entryTitle,
     titleBreakdown: titleBreakdown.length > 0 ? titleBreakdown : undefined,
+    titleDetails: titleDetails.length > 0 ? titleDetails : undefined,
     kind,
     status: typeof raw.status === "string" ? raw.status : null,
   };
@@ -1265,18 +1364,19 @@ function parseSummaryBucket(raw: Record<string, unknown>): RizeTimeEntry | null 
   };
 }
 
-async function fetchSummaryEntries(
+async function fetchSummaryEntriesWithBuckets(
   apiKey: string,
   window: RizeSyncWindow,
-  probeErrors: string[]
+  probeErrors: string[],
+  bucketSizes: readonly string[]
 ): Promise<RizeTimeEntry[]> {
   const variables = {
     startDate: toDateOnly(window.start),
     endDate: toDateOnly(window.end),
-    bucketSize: "hour",
+    bucketSize: bucketSizes[0],
   };
 
-  for (const bucketSize of SUMMARY_BUCKET_SIZES) {
+  for (const bucketSize of bucketSizes) {
     const rows = await tryQueryList<{ summaries?: Record<string, unknown>[] }>(
       apiKey,
       `summaries(${bucketSize})`,
@@ -1289,6 +1389,14 @@ async function fetchSummaryEntries(
     if (parsed.length > 0) return parsed;
   }
   return [];
+}
+
+async function fetchSummaryEntries(
+  apiKey: string,
+  window: RizeSyncWindow,
+  probeErrors: string[]
+): Promise<RizeTimeEntry[]> {
+  return fetchSummaryEntriesWithBuckets(apiKey, window, probeErrors, SUMMARY_BUCKET_SIZES);
 }
 
 async function tryQueryList<T>(
@@ -1359,7 +1467,7 @@ const TIME_ENTRY_STATUS_LISTS: (string[] | undefined)[] = [
 ];
 
 /** Share of [s,e] not covered by existing ranges (0 = fully covered, 1 = empty). */
-function uncoveredFraction(
+export function uncoveredFraction(
   s: number,
   e: number,
   ranges: { start: number; end: number }[]
@@ -1373,6 +1481,12 @@ function uncoveredFraction(
     if (oEnd > oStart) covered += oEnd - oStart;
   }
   return Math.max(0, total - covered) / total;
+}
+
+function shouldFillGap(s: number, e: number, ranges: { start: number; end: number }[]): boolean {
+  const fraction = uncoveredFraction(s, e, ranges);
+  const uncoveredMs = (e - s) * fraction;
+  return fraction >= MIN_UNCOVERED_GAP_FRACTION || uncoveredMs >= MIN_UNCOVERED_GAP_MS;
 }
 
 /** Hourly Rize summaries for hours not covered by real time entries (e.g. evening). */
@@ -1389,13 +1503,17 @@ async function fillGapSummaries(
   }));
 
   for (const day of enumerateLocalDays(window)) {
-    const summaries = await fetchSummaryEntries(apiKey, day, probeErrors);
+    const summaries = await fetchSummaryEntriesWithBuckets(
+      apiKey,
+      day,
+      probeErrors,
+      GAP_FILL_BUCKET_SIZES
+    );
     for (const summary of summaries) {
       const s = new Date(summary.startTime).getTime();
       const e = new Date(summary.endTime).getTime();
       if (e <= s) continue;
-      // Add hour if mostly uncovered (fixes evening gaps when day has partial entries).
-      if (uncoveredFraction(s, e, existing) < 0.25) continue;
+      if (!shouldFillGap(s, e, existing)) continue;
       if (merged.some((m) => m.id === summary.id)) continue;
       merged.push(summary);
       existing.push({ start: s, end: e });
@@ -1403,6 +1521,23 @@ async function fillGapSummaries(
     }
   }
   return added;
+}
+
+async function ensureTimeEntriesGenerated(
+  apiKey: string,
+  window: RizeSyncWindow,
+  probeErrors: string[]
+): Promise<number> {
+  let triggered = 0;
+  for (const day of enumerateLocalDays(window)) {
+    const result = await generateRizeTimeEntries(apiKey, day);
+    if (result.ok) triggered += 1;
+    else if (result.error) {
+      probeErrors.push(`generate@${toDateOnly(day.start)}: ${result.error}`);
+    }
+  }
+  if (triggered > 0) await sleep(3000);
+  return triggered;
 }
 
 function enumerateLocalDays(window: RizeSyncWindow): RizeSyncWindow[] {
@@ -1566,23 +1701,31 @@ async function fetchAppsForWindow(
   return rows;
 }
 
-async function buildTitleBreakdownForEntry(
+async function buildTitlePayloadForEntry(
   apiKey: string,
   row: Record<string, unknown>,
   startTime: string,
   endTime: string,
   probeErrors: string[]
-): Promise<RizeTitleShare[]> {
+): Promise<{ breakdown: RizeTitleShare[]; details: RizeTitleDetail[] }> {
   const durationSec = rawDurationSec(row, startTime, endTime);
-  if (durationSec <= 0) return [];
+  if (durationSec <= 0) return { breakdown: [], details: [] };
 
   const [apps, events] = await Promise.all([
     fetchAppsForWindow(apiKey, startTime, endTime, probeErrors),
     fetchTrackingEventsForWindow(apiKey, startTime, endTime, probeErrors),
   ]);
 
-  // Window titles from `events` (Study, Telegram chats) match Rize Titles; apps only have app names.
   let breakdown: RizeTitleShare[] = [];
+  let details: RizeTitleDetail[] = [];
+
+  if (events.length > 0) {
+    details = buildTitleDetailsFromEvents(events, durationSec);
+  }
+  if (details.length === 0 && apps.length > 0) {
+    details = buildTitleDetailsFromApps(apps, durationSec);
+  }
+
   if (events.length > 0 && trackingEventsHaveDistinctTitles(events)) {
     breakdown = buildTitleBreakdownFromEventsAndApps(events, apps, durationSec);
   } else if (apps.length > 0) {
@@ -1594,7 +1737,26 @@ async function buildTitleBreakdownForEntry(
   const summary =
     (typeof row.title === "string" ? row.title : null) ??
     (typeof row.description === "string" ? row.description : null);
-  return applyStudyHeuristic(breakdown, summary);
+  breakdown = applyStudyHeuristic(breakdown, summary);
+
+  return { breakdown, details };
+}
+
+async function buildTitleBreakdownForEntry(
+  apiKey: string,
+  row: Record<string, unknown>,
+  startTime: string,
+  endTime: string,
+  probeErrors: string[]
+): Promise<RizeTitleShare[]> {
+  const { breakdown } = await buildTitlePayloadForEntry(
+    apiKey,
+    row,
+    startTime,
+    endTime,
+    probeErrors
+  );
+  return breakdown;
 }
 
 async function enrichRawWithAppsTitleBreakdown(
@@ -1613,18 +1775,16 @@ async function enrichRawWithAppsTitleBreakdown(
       const startTime = row.startTime;
       const endTime = row.endTime;
       if (typeof startTime !== "string" || typeof endTime !== "string") continue;
-      if (Array.isArray(row.titles) && row.titles.length > 0) continue;
 
-      const breakdown = await buildTitleBreakdownForEntry(
+      const { breakdown, details } = await buildTitlePayloadForEntry(
         apiKey,
         row,
         startTime,
         endTime,
         probeErrors
       );
-      if (breakdown.length > 0) {
-        row.titles = syntheticTitlesFromBreakdown(breakdown);
-      }
+      if (details.length > 0) row.titleDetails = details;
+      if (breakdown.length > 0) row.titles = syntheticTitlesFromBreakdown(breakdown);
     }
   });
   await Promise.all(workers);
@@ -1635,23 +1795,27 @@ export function rizeCategoryFromProject(
   description: string | null,
   titleBreakdown?: RizeTitleShare[] | null
 ): EventCategory {
-  const labels = titleBreakdown?.map((t) => t.label).join(" ").toLowerCase() ?? "";
-  if (/study|training|research|learn|english|course|education|reading/.test(labels)) {
+  const tag = (projectName ?? "").toLowerCase();
+  if (/training|research|study|learn|english|course|education|reading/.test(tag)) {
     return "learning";
   }
-
-  const tag = (projectName ?? "").toLowerCase();
-  if (/training|research|study|learn|english|course|education|reading/.test(tag)) return "learning";
   if (/health|gym|massage|yoga|walk|doctor|sleep/.test(tag)) return "health";
   if (/meal|lunch|dinner|breakfast|cook|food/.test(tag)) return "meal";
   if (/rest|break|relax|read fiction|game/.test(tag)) return "rest";
   if (/commute|travel|drive|metro|bus/.test(tag)) return "commute";
 
-  const hay = `${projectName ?? ""} ${description ?? ""}`.toLowerCase();
-  if (/training|research|study|learn|english|course|education|reading|studied|researched|explored/.test(hay))
+  const labels = titleBreakdown?.map((t) => t.label).join(" ").toLowerCase() ?? "";
+  if (/study|training|research|learn|english|course|education|reading|python|lesson/.test(labels)) {
     return "learning";
-  if (/cursor|vscode|code|github|terminal|figma|notion|slack|discord|chrome|firefox|edge/.test(hay))
-    return "work";
+  }
+
+  if (/work|job|career|client|meeting|dev|focus|coding|code/.test(tag)) return "work";
+
+  const hay = (description ?? "").toLowerCase();
+  if (/training|research|study|learn|english|course|education|reading|lesson|python|studied|researched|explored/.test(hay)) {
+    return "learning";
+  }
+  if (/cursor|vscode|github|terminal|figma|notion|slack|discord/.test(hay)) return "work";
   if (/work|job|career|client|meeting|dev|focus|tracked|activity/.test(hay)) return "work";
   if (/health|gym|massage|yoga|walk|doctor|sleep/.test(hay)) return "health";
   if (/meal|lunch|dinner|breakfast|cook|food/.test(hay)) return "meal";
@@ -1670,17 +1834,22 @@ export function rizeTrackFromProject(projectName: string | null): string | undef
 }
 
 export function buildRizeEventTitle(entry: RizeTimeEntry): string {
-  if (entry.titleBreakdown && entry.titleBreakdown.length > 0) {
-    return formatTitleBreakdown(entry.titleBreakdown);
-  }
+  const summary = entry.entryTitle?.trim();
+  if (summary) return summary.length > 120 ? `${summary.slice(0, 117)}…` : summary;
 
   const tag = entry.projectName?.trim();
-  if (tag && tag !== "Activity") {
-    if (entry.kind === "session") return `${tag} session`;
-    return tag;
-  }
-  if (entry.kind === "session") return "Focus session";
+  if (tag && tag !== "Activity") return tag;
+
   return "Activity";
+}
+
+/** Synthetic blocks invented by our importer — not Rize timeline entries. */
+export function isSyntheticRizeEntryId(id: string): boolean {
+  return /^(summary_|app_|cat_|summary_total_|project_|task_|session_)/.test(id);
+}
+
+export function isTimelineRizeEntry(entry: RizeTimeEntry): boolean {
+  return entry.kind === "time" && !isSyntheticRizeEntryId(entry.id);
 }
 
 export function rizeIsoToNaive(iso: string): string {
@@ -1710,15 +1879,19 @@ export function mapRizeEntryToCalendarEvent(entry: RizeTimeEntry): RizeCalendarE
       : MIN_RIZE_ENTRY_MS;
   if (entryDurationMs(entry) < minMs) return null;
 
-  const notes: string[] = [`Rize ${entry.kind}`];
-  if (entry.status) notes.push(`Status: ${entry.status}`);
+  const noteParts: string[] = [];
   if (entry.projectName && entry.projectName !== "Activity") {
-    notes.push(`Project: ${entry.projectName}`);
+    noteParts.push(`Tag: ${entry.projectName}`);
   }
-  if (entry.entryTitle?.trim()) {
-    notes.push(`Summary: ${entry.entryTitle.trim()}`);
+  if (entry.titleDetails?.length) {
+    noteParts.push("Titles:");
+    noteParts.push(formatRizeTitleDetailsNotes(entry.titleDetails));
+  } else if (entry.titleBreakdown?.length) {
+    noteParts.push("Titles:");
+    for (const share of entry.titleBreakdown) {
+      noteParts.push(`• ${share.label} (${Math.round(share.percent)}%)`);
+    }
   }
-  if (entry.clientName) notes.push(`Client: ${entry.clientName}`);
 
   return {
     rizeEntryId: entry.id,
@@ -1731,7 +1904,7 @@ export function mapRizeEntryToCalendarEvent(entry: RizeTimeEntry): RizeCalendarE
     start: rizeIsoToNaive(entry.startTime),
     end: rizeIsoToNaive(entry.endTime),
     track: rizeTrackFromProject(entry.projectName),
-    notes: notes.join("\n"),
+    notes: noteParts.length > 0 ? noteParts.join("\n") : undefined,
   };
 }
 
@@ -1968,36 +2141,49 @@ export async function fetchRizeTimeEntries(
   };
 }
 
+export async function fetchRizeTimelineEntries(
+  apiKey: string,
+  window: RizeSyncWindow
+): Promise<{ entries: RizeTimeEntry[]; stats: RizeFetchStats }> {
+  const probeErrors: string[] = [];
+  const user = await fetchCurrentUser(apiKey);
+  const timeEntriesRaw = await fetchPrimaryTimeEntries(apiKey, window, probeErrors);
+
+  const parsed: RizeTimeEntry[] = [];
+  for (const raw of timeEntriesRaw) {
+    const e = parseGenericTimeEntry(raw, "time", "time");
+    if (e && isTimelineRizeEntry(e)) parsed.push(e);
+  }
+
+  const finalEntries = filterEntriesInWindow(parsed, window);
+
+  return {
+    entries: finalEntries,
+    stats: {
+      timeEntries: timeEntriesRaw.length,
+      projectEntries: 0,
+      taskEntries: 0,
+      sessions: 0,
+      appsTracked: 0,
+      summaries: 0,
+      appBlocks: 0,
+      categoryBlocks: 0,
+      totalRaw: finalEntries.length,
+      inWindow: finalEntries.length,
+      mapped: 0,
+      tooShort: 0,
+      sources: timeEntriesRaw.length ? ["timeEntries"] : [],
+      probeErrors,
+      userEmail: user.email,
+    },
+  };
+}
+
 export async function syncRizeCalendarEvents(
   apiKey: string,
-  window: RizeSyncWindow,
-  options?: { generateIfEmpty?: boolean }
+  window: RizeSyncWindow
 ): Promise<{ events: RizeCalendarEvent[]; stats: RizeFetchStats }> {
-  let { entries, stats } = await fetchRizeTimeEntries(apiKey, window);
-
-  if (entries.length === 0 && options?.generateIfEmpty && stats.appsTracked > 0) {
-    const todayWindow = resolveTodayWindow();
-    const gen = await generateRizeTimeEntries(apiKey, todayWindow);
-    stats = { ...stats, generated: gen.ok, generateError: gen.error };
-
-    if (gen.ok) {
-      for (const delay of GENERATE_POLL_MS) {
-        await sleep(delay);
-        const retry = await fetchRizeTimeEntries(apiKey, window);
-        if (retry.entries.length > 0) {
-          entries = retry.entries;
-          stats = { ...retry.stats, generated: true };
-          break;
-        }
-      }
-    }
-
-    if (entries.length === 0) {
-      const retry = await fetchRizeTimeEntries(apiKey, window);
-      entries = retry.entries;
-      stats = { ...retry.stats, generated: gen.ok, generateError: gen.error };
-    }
-  }
+  const { entries, stats } = await fetchRizeTimelineEntries(apiKey, window);
 
   const mapped: RizeCalendarEvent[] = [];
   let tooShort = 0;
