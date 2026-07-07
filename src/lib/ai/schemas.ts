@@ -58,6 +58,18 @@ export const progressReportSchema = z.object({
 });
 export type ProgressReport = z.infer<typeof progressReportSchema>;
 
+export const weeklyProgressReportSchema = z.object({
+  summary: z.string().default(""),
+  totalLearningHours: z.number().optional(),
+  highlights: z.array(z.string()).default([]),
+  topicsStudied: z.array(z.string()).default([]),
+  dynamics: z.string().default(""),
+  strengths: z.array(z.string()).default([]),
+  improvements: z.array(z.string()).default([]),
+  nextWeekFocus: z.array(z.string()).default([]),
+});
+export type WeeklyProgressReport = z.infer<typeof weeklyProgressReportSchema>;
+
 // ---------- Cooking: natural-language fridge command (add + remove) ----------
 export const fridgeCommandSchema = z.object({
   reasoning: z.string().default(""),

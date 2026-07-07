@@ -4,7 +4,6 @@ import {
   Trophy,
   ChefHat,
   Briefcase,
-  Map,
   Languages,
   BookOpen,
   type LucideIcon,
@@ -33,7 +32,7 @@ export const NAV_ITEMS: NavItem[] = [
   {
     href: "/progress",
     label: "Progress",
-    description: "Learning & applications",
+    description: "Calendar analytics & AI",
     icon: Trophy,
   },
   {
@@ -53,12 +52,6 @@ export const NAV_ITEMS: NavItem[] = [
     label: "Work / Career",
     description: "CV, jobs, LinkedIn",
     icon: Briefcase,
-  },
-  {
-    href: "/roadmap",
-    label: "Bootcamp",
-    description: "2-week ML schedule & rules",
-    icon: Map,
   },
   {
     href: "/knowledge",

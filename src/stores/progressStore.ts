@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
-import type { LearningTrack, DailyReport, DailyLog, TrackType } from "@/types";
+import type { LearningTrack, DailyReport, WeeklyReport, DailyLog, TrackType } from "@/types";
 import { uid } from "@/lib/utils";
 import {
   applyAutoLock,
@@ -20,6 +20,7 @@ const cloneLogs = (logs: DailyLog[]): DailyLog[] => logs.map((l) => ({ ...l }));
 interface ProgressState {
   tracks: LearningTrack[];
   reports: DailyReport[];
+  weeklyReports: WeeklyReport[];
   logs: DailyLog[];
   logsPast: DailyLog[][];
   goal: { title: string; targetHours: number };
@@ -28,6 +29,7 @@ interface ProgressState {
   removeTrack: (id: string) => void;
 
   addReport: (r: Omit<DailyReport, "id">) => void;
+  addWeeklyReport: (r: Omit<WeeklyReport, "id">) => void;
 
   addLog: (text: string, calendarEventId?: string, timerSessionId?: string) => string;
   updateLog: (id: string, text: string) => void;
@@ -52,6 +54,7 @@ export const useProgressStore = create<ProgressState>()(
     (set, get) => ({
       tracks: seedTracks,
       reports: [],
+      weeklyReports: [],
       logs: [],
       logsPast: [],
       goal: {
@@ -72,6 +75,11 @@ export const useProgressStore = create<ProgressState>()(
       addReport: (r) =>
         set((s) => ({
           reports: [{ ...r, id: uid("rep") }, ...s.reports].slice(0, 30),
+        })),
+
+      addWeeklyReport: (r) =>
+        set((s) => ({
+          weeklyReports: [{ ...r, id: uid("wrep") }, ...s.weeklyReports].slice(0, 12),
         })),
 
       addLog: (text, calendarEventId, timerSessionId) => {
@@ -155,9 +163,15 @@ export const useProgressStore = create<ProgressState>()(
     }),
     {
       name: "mdp-progress",
+      version: 2,
+      migrate: (persisted) => {
+        const s = persisted as Record<string, unknown>;
+        return { ...s, weeklyReports: s.weeklyReports ?? [] };
+      },
       partialize: (s) => ({
         tracks: s.tracks,
         reports: s.reports,
+        weeklyReports: s.weeklyReports,
         logs: s.logs,
         goal: s.goal,
       }),

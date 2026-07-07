@@ -13,9 +13,13 @@ import {
   parseTitleBreakdownFromRaw,
   rizeCategoryFromProject,
   rizeTrackFromProject,
+  rizeIsoToNaive,
   formatRizeTitleDetailsNotes,
   isSyntheticRizeEntryId,
   isTimelineRizeEntry,
+  isRizeAiNarrative,
+  looksLikeOrphanRizeCalendarEvent,
+  rawRizeEntryHasTrackingProof,
   uncoveredFraction,
   type RizeTimeEntry,
 } from "@/lib/integrations/rize";
@@ -497,6 +501,71 @@ describe("rize integration", () => {
         ...baseEntry,
         id: "time_1",
         kind: "time",
+      })
+    ).toBe(true);
+  });
+
+  it("detects orphan Rize calendar imports without rizeEntryId", () => {
+    expect(
+      isRizeAiNarrative("Completed Python Debugging and Code Review Lessons")
+    ).toBe(true);
+
+    expect(
+      looksLikeOrphanRizeCalendarEvent({
+        title: "Completed Python Debugging and Code Review Lessons",
+        status: "done",
+        notes: "Tag: Training\nTitles:\n• Study — 45 min (80%)",
+      })
+    ).toBe(true);
+
+    expect(
+      looksLikeOrphanRizeCalendarEvent({
+        title: "google chrome 66%",
+        status: "done",
+      })
+    ).toBe(true);
+
+    expect(
+      looksLikeOrphanRizeCalendarEvent({
+        title: "Completed Python Debugging and Code Review Lessons",
+        status: "done",
+        meta: { rizeEntryId: "time_abc" },
+      })
+    ).toBe(false);
+
+    expect(
+      looksLikeOrphanRizeCalendarEvent({
+        title: "Morning standup",
+        status: "done",
+      })
+    ).toBe(false);
+  });
+
+  it("converts Rize UTC timestamps to user timezone", () => {
+    expect(
+      rizeIsoToNaive("2026-07-06T00:37:00.000Z", "Asia/Bangkok")
+    ).toBe("2026-07-06T07:37:00");
+  });
+
+  it("requires tracking proof before importing a Rize time entry", () => {
+    expect(
+      rawRizeEntryHasTrackingProof({
+        startTime: "2026-07-05T00:37:00.000Z",
+        endTime: "2026-07-05T01:00:00.000Z",
+        title: "Completed Python Debugging and Code Review Lessons",
+      })
+    ).toBe(false);
+
+    expect(
+      rawRizeEntryHasTrackingProof({
+        _trackingProof: true,
+        title: "Completed Python Debugging and Code Review Lessons",
+      })
+    ).toBe(true);
+
+    expect(
+      rawRizeEntryHasTrackingProof({
+        titles: [{ title: "Study", timeSpent: 1200 }],
       })
     ).toBe(true);
   });

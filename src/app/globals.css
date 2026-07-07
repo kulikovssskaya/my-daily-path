@@ -253,7 +253,8 @@
   background: hsl(var(--muted));
   font-weight: 600;
 }
-.knowledge-article h2 {
+.knowledge-article h2,
+.knowledge-article h3 {
   scroll-margin-top: 1rem;
 }
 /* KaTeX: allow wide display equations to scroll instead of overflow */

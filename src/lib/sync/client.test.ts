@@ -4,7 +4,7 @@ import { collectLocalBlobs, hasLocalData, SYNC_STORAGE_KEYS } from "@/lib/sync/c
 describe("sync client", () => {
   it("exports all storage keys", () => {
     expect(SYNC_STORAGE_KEYS).toContain("mdp-schedule");
-    expect(SYNC_STORAGE_KEYS).toContain("mdp-timer");
+    expect(SYNC_STORAGE_KEYS).toContain("mdp-progress");
   });
 
   it("returns empty blobs on server (no window)", () => {

@@ -44,7 +44,9 @@ export function buildQuizQuestions(words: EnglishVocabWord[]): QuizQuestion[] {
   }
 
   for (const word of list.slice(0, Math.min(4, list.length))) {
-    const blanked = word.example.replace(new RegExp(word.term.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i"), "___");
+    const escaped = word.term.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    if (!new RegExp(escaped, "i").test(word.example)) continue;
+    const blanked = word.example.replace(new RegExp(escaped, "i"), "___");
     questions.push({
       id: uid("q"),
       type: "fill_blank",

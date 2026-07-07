@@ -8,7 +8,10 @@ import type {
 } from "@/types";
 import type { AIEvent, AIHabit } from "@/lib/ai/schemas";
 import type { RizeCalendarEvent } from "@/lib/integrations/rize";
-import { isSyntheticRizeEntryId } from "@/lib/integrations/rize";
+import {
+  isSyntheticRizeEntryId,
+  looksLikeOrphanRizeCalendarEvent,
+} from "@/lib/integrations/rize";
 import { uid } from "@/lib/utils";
 import { eventDayKey, todayKeyFromIso } from "@/lib/planSafety";
 import {
@@ -17,6 +20,10 @@ import {
   touchTimestamp,
   writePermanentArchive,
 } from "@/lib/dataProtection";
+import {
+  mergeSchedulePersistStates,
+  type SchedulePersistState,
+} from "@/lib/sync/scheduleBlobMerge";
 
 interface Snapshot {
   events: ScheduleEvent[];
@@ -87,12 +94,6 @@ function lookbackStartIso(hours: number): string {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(
     d.getHours()
   )}:${pad(d.getMinutes())}:00`;
-}
-
-/** Old bad imports without rizeEntryId (e.g. "google chrome 66%"). */
-function looksLikeStaleRizeImport(ev: ScheduleEvent): boolean {
-  if (ev.meta?.rizeEntryId) return false;
-  return /\d+\s*%/.test(ev.title) && /chrome|telegram|study|cursor|edge|firefox/i.test(ev.title);
 }
 
 function habitFromAI(h: AIHabit): Habit {
@@ -180,14 +181,18 @@ export const useScheduleStore = create<ScheduleState>()(
         }),
 
       cycleStatus: (id) =>
-        set((s) => ({
-          past: pushHistory(s),
-          events: s.events.map((ev) =>
-            ev.id === id
-              ? { ...ev, status: nextStatus[ev.status], lastModifiedAt: touchTimestamp() }
-              : ev
-          ),
-        })),
+        set((s) => {
+          const ev = s.events.find((x) => x.id === id);
+          if (!ev || isLocked(ev)) return s;
+          return {
+            past: pushHistory(s),
+            events: s.events.map((e) =>
+              e.id === id
+                ? { ...e, status: nextStatus[e.status], lastModifiedAt: touchTimestamp() }
+                : e
+            ),
+          };
+        }),
 
       unlockEvent: (id) =>
         set((s) => ({
@@ -377,14 +382,15 @@ export const useScheduleStore = create<ScheduleState>()(
           for (const ev of s.events) {
             const inWindow = ev.start >= windowStart;
             const rizeId = ev.meta?.rizeEntryId;
-            const stale = looksLikeStaleRizeImport(ev);
+            const orphan = looksLikeOrphanRizeCalendarEvent(ev);
 
-            if (!inWindow || (!rizeId && !stale)) {
+            if (!inWindow || (!rizeId && !orphan)) {
               kept.push(ev);
               continue;
             }
 
-            if (isLocked(ev)) {
+            // Auto-lock must not block Rize refresh — only skip user-edited imports.
+            if (isLocked(ev) && ev.meta?.rizeTouched) {
               kept.push(ev);
               if (rizeId) lockedIds.add(rizeId);
               skipped += 1;
@@ -480,6 +486,26 @@ export const useScheduleStore = create<ScheduleState>()(
     }),
     {
       name: "mdp-schedule",
+      merge: (persisted, current) => {
+        const p = (persisted ?? {}) as Partial<SchedulePersistState> & {
+          state?: Partial<SchedulePersistState>;
+        };
+        const state = p.state ?? p;
+        const currentSlice: SchedulePersistState = {
+          events: current.events,
+          habits: current.habits,
+        };
+        const persistedSlice: SchedulePersistState = {
+          events: state.events ?? [],
+          habits: state.habits ?? [],
+        };
+        const merged = mergeSchedulePersistStates(currentSlice, persistedSlice);
+        return {
+          ...current,
+          events: merged.events,
+          habits: merged.habits,
+        };
+      },
       partialize: (s) => ({ events: s.events, habits: s.habits }),
     }
   )

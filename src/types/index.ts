@@ -105,6 +105,21 @@ export interface DailyReport {
   recommendations: string[];
 }
 
+export interface WeeklyReport {
+  id: string;
+  weekKey: string;
+  weekLabel: string;
+  date: ISODate;
+  summary: string;
+  totalLearningHours?: number;
+  highlights: string[];
+  topicsStudied: string[];
+  dynamics: string;
+  strengths: string[];
+  improvements: string[];
+  nextWeekFocus: string[];
+}
+
 /** A free-form note about what the user actually did on a given day. */
 export interface DailyLog {
   id: string;
@@ -240,6 +255,8 @@ export interface EnglishDailySession {
   phase: EnglishSessionPhase;
   flashcardIndex: number;
   flashcardResults: Record<string, "know" | "unknown">;
+  matchingCorrect: number;
+  matchingDone: boolean;
   quizProgress: number;
   quizCorrect: number;
   reviewAnswers: Record<string, boolean>;

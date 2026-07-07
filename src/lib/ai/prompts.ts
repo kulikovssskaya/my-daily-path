@@ -139,6 +139,15 @@ export function buildProgressUserMessage(input: {
   applicationsByStatus: Record<string, number>;
   recentLearning: { title: string; track?: string; date: string }[];
   dailyLogs?: { date: string; text: string }[];
+  calendarSessions?: {
+    date: string;
+    title: string;
+    category: string;
+    timeRange: string;
+    durationHours: number;
+    track?: string;
+    notes?: string;
+  }[];
 }): string {
   const tracks = input.tracks.length
     ? input.tracks
@@ -159,6 +168,16 @@ export function buildProgressUserMessage(input: {
   const logs = input.dailyLogs && input.dailyLogs.length
     ? input.dailyLogs.map((l) => `- ${l.date}: ${l.text}`).join("\n")
     : "(no daily notes)";
+  const calendar = input.calendarSessions?.length
+    ? input.calendarSessions
+        .map(
+          (s) =>
+            `- ${s.date} ${s.timeRange} (${s.durationHours}h) [${s.category}] ${s.title}${
+              s.track ? ` · ${s.track}` : ""
+            }${s.notes ? ` · ${s.notes}` : ""}`
+        )
+        .join("\n")
+    : "(no calendar data)";
 
   return `MEMORY:
 ${formatMemory(input.memory)}
@@ -174,8 +193,70 @@ ${recent}
 USER'S DAILY NOTES (what they say they actually did — weigh these heavily):
 ${logs}
 
+CALENDAR SESSIONS (completed — titles, times, notes):
+${calendar}
+
 Give a short daily report, recommendations, what to focus more on and what to reduce.
-Base it especially on the user's daily notes. JSON only.`;
+Base it especially on the user's daily notes and calendar session details (titles, times, notes). JSON only.`;
+}
+
+export const WEEKLY_PROGRESS_SYSTEM = `You are the progress coach in the "My Daily Path" app.
+Analyze a full calendar week of learning: completed sessions from the schedule (titles, times, notes, tracks) plus the user's daily notes.
+Write a weekly wrap-up with trends, topics covered, strengths and concrete next-week focus.
+Respond with STRICTLY valid JSON, no markdown:
+{ "summary": string, "totalLearningHours": number, "highlights": string[], "topicsStudied": string[], "dynamics": string, "strengths": string[], "improvements": string[], "nextWeekFocus": string[] }
+Return only JSON. Write all text in English.`;
+
+export function buildWeeklyProgressUserMessage(input: {
+  memory: UserMemory;
+  goal: { title: string; targetHours: number };
+  weekLabel: string;
+  calendarSessions: {
+    date: string;
+    title: string;
+    category: string;
+    timeRange: string;
+    durationHours: number;
+    track?: string;
+    notes?: string;
+  }[];
+  dailyLogs: { date: string; text: string }[];
+  learningHoursByDay: { date: string; hours: number }[];
+}): string {
+  const sessions = input.calendarSessions.length
+    ? input.calendarSessions
+        .map(
+          (s) =>
+            `- ${s.date} ${s.timeRange} (${s.durationHours}h) [${s.category}] ${s.title}${
+              s.track ? ` · track: ${s.track}` : ""
+            }${s.notes ? ` · notes: ${s.notes}` : ""}`
+        )
+        .join("\n")
+    : "(no completed calendar sessions this week)";
+
+  const logs = input.dailyLogs.length
+    ? input.dailyLogs.map((l) => `- ${l.date}: ${l.text}`).join("\n")
+    : "(no daily notes this week)";
+
+  const byDay = input.learningHoursByDay
+    .map((d) => `${d.date}: ${d.hours.toFixed(1)}h`)
+    .join(", ");
+
+  return `MEMORY:
+${formatMemory(input.memory)}
+
+LONG-TERM GOAL: ${input.goal.title} (${input.goal.targetHours}h target)
+
+WEEK: ${input.weekLabel}
+Learning hours by day: ${byDay || "none"}
+
+CALENDAR SESSIONS (completed — primary data source):
+${sessions}
+
+USER DAILY NOTES (what they say they did — weigh heavily):
+${logs}
+
+Write a weekly progress summary with dynamics/trends, topics studied, strengths, improvements, and next-week focus. JSON only.`;
 }
 
 // ============================================================

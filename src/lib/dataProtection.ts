@@ -90,7 +90,11 @@ export function writePermanentArchive(patch: {
     habits: mergeUnique(prev.habits, patch.habits ?? []),
     dailyLogs: mergeUnique(prev.dailyLogs, patch.dailyLogs ?? []),
   };
-  localStorage.setItem(PERMANENT_ARCHIVE_KEY, JSON.stringify(next));
+  try {
+    localStorage.setItem(PERMANENT_ARCHIVE_KEY, JSON.stringify(next));
+  } catch {
+    // Quota exceeded or private mode — archive is best-effort
+  }
 }
 
 export function applyAutoLock<T extends LockableFields>(

@@ -10,6 +10,7 @@ import { useUIStore } from "@/stores/uiStore";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { ThemeToggle } from "./ThemeToggle";
+import { CloudSyncWidget } from "./CloudSyncWidget";
 import type { NavItem } from "@/config/nav";
 
 function NavLinkInner({
@@ -141,6 +142,7 @@ export function DesktopSidebar() {
       <div className="mt-2 flex-1 overflow-y-auto scrollbar-thin">
         <NavLinks collapsed={sidebarCollapsed} />
       </div>
+      <CloudSyncWidget collapsed={sidebarCollapsed} />
       <div
         className={cn(
           "flex items-center gap-2 border-t px-3 py-3",
@@ -196,6 +198,7 @@ export function MobileDrawer() {
         <div className="mt-2 flex-1 overflow-y-auto scrollbar-thin">
           <NavLinks onNavigate={closeMobileNav} />
         </div>
+        <CloudSyncWidget />
         <div className="flex items-center justify-between border-t px-3 py-3">
           <span className="px-2 text-xs text-muted-foreground">Theme</span>
           <ThemeToggle />

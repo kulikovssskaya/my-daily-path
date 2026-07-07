@@ -20,7 +20,10 @@
     "autostart:remove": "powershell -ExecutionPolicy Bypass -File scripts/unregister-windows-autostart.ps1",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint --dir src",
+    "sync:restore": "node scripts/sync-restore.mjs",
+    "sync:restore:full": "npx vercel env pull .env.vercel.local --environment=production --yes && node scripts/sync-restore.mjs",
+    "sync:env": "node scripts/merge-sync-env.mjs"
   },
   "dependencies": {
     "@fullcalendar/core": "^6.1.15",
@@ -29,6 +32,7 @@
     "@fullcalendar/list": "^6.1.15",
     "@fullcalendar/react": "^6.1.15",
     "@fullcalendar/timegrid": "^6.1.15",
+    "@upstash/redis": "^1.38.0",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "gray-matter": "^4.0.3",
@@ -47,10 +51,13 @@
     "zustand": "^5.0.2"
   },
   "devDependencies": {
+    "@eslint/eslintrc": "^3.3.5",
     "@types/node": "^22.10.2",
     "@types/react": "^19.0.2",
     "@types/react-dom": "^19.0.2",
     "autoprefixer": "^10.4.20",
+    "eslint": "^8.57.1",
+    "eslint-config-next": "^15.5.20",
     "postcss": "^8.4.49",
     "tailwindcss": "^3.4.17",
     "typescript": "^5.7.2",

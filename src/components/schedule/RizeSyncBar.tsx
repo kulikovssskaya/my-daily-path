@@ -23,12 +23,14 @@ export function RizeSyncBar({ className }: { className?: string }) {
     setSyncing(true);
     setMessage(null);
     try {
-      const result = await syncRizeToCalendar(168);
+      const result = await syncRizeToCalendar(336);
       if (!result.ok) {
         setMessage(result.error ?? "Sync failed");
         return;
       }
       setMessage(formatRizeSyncMessage(result));
+    } catch (err) {
+      setMessage(err instanceof Error ? err.message : "Sync failed");
     } finally {
       setSyncing(false);
     }
@@ -58,7 +60,7 @@ export function RizeSyncBar({ className }: { className?: string }) {
         Sync from Rize
       </Button>
       <span className="text-xs text-muted-foreground">
-        Replaces Rize blocks in the last 7 days · titles in event notes
+        Replaces Rize blocks in the last 14 days · titles in event notes
       </span>
       {message && (
         <span className="max-w-xl text-xs text-muted-foreground">{message}</span>

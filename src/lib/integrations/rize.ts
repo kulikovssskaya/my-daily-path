@@ -1,4 +1,5 @@
 import type { EventCategory } from "@/types";
+import { isoToNaiveInTimezone } from "@/lib/utils";
 
 export const RIZE_GRAPHQL_URL =
   process.env.RIZE_GRAPHQL_URL ?? "https://api.rize.io/api/v1/graphql";
@@ -71,6 +72,7 @@ export interface RizeFetchStats {
   inWindow: number;
   mapped: number;
   tooShort: number;
+  noTracking?: number;
   sources: string[];
   probeErrors: string[];
   userEmail?: string;
@@ -362,6 +364,32 @@ export function isRizeAiNarrative(text: string): boolean {
   return /^(conducted|dedicated|spent|worked|focused|reviewed|completed|engaged|utilized|performed|continued|researched|studied|implemented|explored|configured|developed|managed)\b/i.test(
     t
   );
+}
+
+/** Old Rize imports without rizeEntryId — e.g. AI titles or "google chrome 66%". */
+export function looksLikeOrphanRizeCalendarEvent(ev: {
+  title: string;
+  notes?: string;
+  status?: string;
+  meta?: { rizeEntryId?: string };
+}): boolean {
+  if (ev.meta?.rizeEntryId) return false;
+  if (ev.notes?.includes("Tag:") || ev.notes?.includes("Titles:")) return true;
+  if (ev.status === "done" && isRizeAiNarrative(ev.title)) return true;
+  return (
+    /\d+\s*%/.test(ev.title) &&
+    /chrome|telegram|study|cursor|edge|firefox/i.test(ev.title)
+  );
+}
+
+const MIN_TRACKING_PROOF_SEC = 60;
+
+/** Skip Rize AI time entries with no apps/events in that window (phantom when PC was off). */
+export function rawRizeEntryHasTrackingProof(raw: Record<string, unknown>): boolean {
+  if (raw._trackingProof === true) return true;
+  if (parseTitleBreakdownFromRaw(raw).length > 0) return true;
+  if (parseTitleDetailsFromRaw(raw).length > 0) return true;
+  return false;
 }
 
 /** Short label for Rize window titles — merges "Telegram (122757)" → "Telegram". */
@@ -1707,9 +1735,13 @@ async function buildTitlePayloadForEntry(
   startTime: string,
   endTime: string,
   probeErrors: string[]
-): Promise<{ breakdown: RizeTitleShare[]; details: RizeTitleDetail[] }> {
+): Promise<{
+  breakdown: RizeTitleShare[];
+  details: RizeTitleDetail[];
+  hasTrackingProof: boolean;
+}> {
   const durationSec = rawDurationSec(row, startTime, endTime);
-  if (durationSec <= 0) return { breakdown: [], details: [] };
+  if (durationSec <= 0) return { breakdown: [], details: [], hasTrackingProof: false };
 
   const [apps, events] = await Promise.all([
     fetchAppsForWindow(apiKey, startTime, endTime, probeErrors),
@@ -1739,7 +1771,14 @@ async function buildTitlePayloadForEntry(
     (typeof row.description === "string" ? row.description : null);
   breakdown = applyStudyHeuristic(breakdown, summary);
 
-  return { breakdown, details };
+  const appsSec = readAppsTotalSec(apps);
+  const hasTrackingProof =
+    events.length > 0 ||
+    appsSec >= MIN_TRACKING_PROOF_SEC ||
+    details.length > 0 ||
+    breakdown.length > 0;
+
+  return { breakdown, details, hasTrackingProof };
 }
 
 async function buildTitleBreakdownForEntry(
@@ -1776,7 +1815,7 @@ async function enrichRawWithAppsTitleBreakdown(
       const endTime = row.endTime;
       if (typeof startTime !== "string" || typeof endTime !== "string") continue;
 
-      const { breakdown, details } = await buildTitlePayloadForEntry(
+      const { breakdown, details, hasTrackingProof } = await buildTitlePayloadForEntry(
         apiKey,
         row,
         startTime,
@@ -1785,6 +1824,7 @@ async function enrichRawWithAppsTitleBreakdown(
       );
       if (details.length > 0) row.titleDetails = details;
       if (breakdown.length > 0) row.titles = syntheticTitlesFromBreakdown(breakdown);
+      row._trackingProof = hasTrackingProof;
     }
   });
   await Promise.all(workers);
@@ -1852,7 +1892,8 @@ export function isTimelineRizeEntry(entry: RizeTimeEntry): boolean {
   return entry.kind === "time" && !isSyntheticRizeEntryId(entry.id);
 }
 
-export function rizeIsoToNaive(iso: string): string {
+export function rizeIsoToNaive(iso: string, timeZone?: string): string {
+  if (timeZone) return isoToNaiveInTimezone(iso, timeZone);
   const d = new Date(iso);
   const pad = (n: number) => String(n).padStart(2, "0");
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(
@@ -1872,7 +1913,10 @@ export function entryDurationMs(entry: RizeTimeEntry): number {
   return 0;
 }
 
-export function mapRizeEntryToCalendarEvent(entry: RizeTimeEntry): RizeCalendarEvent | null {
+export function mapRizeEntryToCalendarEvent(
+  entry: RizeTimeEntry,
+  timeZone?: string
+): RizeCalendarEvent | null {
   const minMs =
     entry.kind === "summary" || entry.source === "apps" || entry.source === "categories"
       ? 30_000
@@ -1901,8 +1945,8 @@ export function mapRizeEntryToCalendarEvent(entry: RizeTimeEntry): RizeCalendarE
       entry.entryTitle ?? entry.description,
       entry.titleBreakdown
     ),
-    start: rizeIsoToNaive(entry.startTime),
-    end: rizeIsoToNaive(entry.endTime),
+    start: rizeIsoToNaive(entry.startTime, timeZone),
+    end: rizeIsoToNaive(entry.endTime, timeZone),
     track: rizeTrackFromProject(entry.projectName),
     notes: noteParts.length > 0 ? noteParts.join("\n") : undefined,
   };
@@ -2150,7 +2194,12 @@ export async function fetchRizeTimelineEntries(
   const timeEntriesRaw = await fetchPrimaryTimeEntries(apiKey, window, probeErrors);
 
   const parsed: RizeTimeEntry[] = [];
+  let noTracking = 0;
   for (const raw of timeEntriesRaw) {
+    if (!rawRizeEntryHasTrackingProof(raw)) {
+      noTracking += 1;
+      continue;
+    }
     const e = parseGenericTimeEntry(raw, "time", "time");
     if (e && isTimelineRizeEntry(e)) parsed.push(e);
   }
@@ -2172,6 +2221,7 @@ export async function fetchRizeTimelineEntries(
       inWindow: finalEntries.length,
       mapped: 0,
       tooShort: 0,
+      noTracking: noTracking || undefined,
       sources: timeEntriesRaw.length ? ["timeEntries"] : [],
       probeErrors,
       userEmail: user.email,
@@ -2181,14 +2231,21 @@ export async function fetchRizeTimelineEntries(
 
 export async function syncRizeCalendarEvents(
   apiKey: string,
-  window: RizeSyncWindow
+  window: RizeSyncWindow,
+  timeZone?: string
 ): Promise<{ events: RizeCalendarEvent[]; stats: RizeFetchStats }> {
   const { entries, stats } = await fetchRizeTimelineEntries(apiKey, window);
+
+  let tz = timeZone?.trim();
+  if (!tz) {
+    const user = await fetchCurrentUser(apiKey);
+    tz = user.timezone ?? "UTC";
+  }
 
   const mapped: RizeCalendarEvent[] = [];
   let tooShort = 0;
   for (const entry of entries) {
-    const ev = mapRizeEntryToCalendarEvent(entry);
+    const ev = mapRizeEntryToCalendarEvent(entry, tz);
     if (ev) mapped.push(ev);
     else tooShort += 1;
   }

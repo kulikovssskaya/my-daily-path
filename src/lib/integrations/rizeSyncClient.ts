@@ -1,6 +1,8 @@
 import type { RizeCalendarEvent, RizeFetchStats } from "@/lib/integrations/rize";
 import { getStoredSyncKey, isSyncEnabled } from "@/lib/sync/syncAuthClient";
-import { pushToServer } from "@/lib/sync/syncRunner";
+import { pullFromCloud, runCloudSync } from "@/lib/sync/syncRunner";
+
+const DEFAULT_RIZE_LOOKBACK_HOURS = 336;
 
 export interface RizeSyncResult {
   ok: boolean;
@@ -20,18 +22,27 @@ export async function pullRizeEvents(
   | { events: RizeCalendarEvent[]; count: number; stats: RizeFetchStats }
   | { error: string; status: number }
 > {
-  const params = new URLSearchParams({ lookbackHours: String(lookbackHours) });
+  const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+  const params = new URLSearchParams({
+    lookbackHours: String(lookbackHours),
+    timezone: timeZone,
+  });
 
   const res = await fetch(`/api/integrations/rize/sync?${params}`, {
     method: "POST",
     cache: "no-store",
   });
-  const data = (await res.json()) as {
+  let data: {
     events?: RizeCalendarEvent[];
     count?: number;
     stats?: RizeFetchStats;
     error?: string;
-  };
+  } = {};
+  try {
+    data = (await res.json()) as typeof data;
+  } catch {
+    return { error: `Sync failed (${res.status})`, status: res.status };
+  }
   if (!res.ok) {
     return { error: data.error ?? `Sync failed (${res.status})`, status: res.status };
   }
@@ -68,11 +79,12 @@ export function formatRizeSyncMessage(result: RizeSyncResult): string {
   const parts: string[] = [];
   if (result.removed) parts.push(`replaced ${result.removed}`);
   if (result.added) parts.push(`+${result.added} from Rize`);
-  if (result.skipped) parts.push(`${result.skipped} locked`);
+  if (result.skipped) parts.push(`${result.skipped} kept (edited)`);
   if (result.pushed) parts.push("saved to cloud");
 
   const s = result.stats;
   if (s?.timeEntries) parts.push(`${s.timeEntries} Rize entries`);
+  if (s?.noTracking) parts.push(`${s.noTracking} skipped (no tracking)`);
 
   if (parts.length > 0) return parts.join(" · ");
 
@@ -83,8 +95,16 @@ export function formatRizeSyncMessage(result: RizeSyncResult): string {
   return `Refreshed ${result.count} blocks from Rize`;
 }
 
-export async function syncRizeToCalendar(lookbackHours = 168): Promise<RizeSyncResult> {
+export async function syncRizeToCalendar(
+  lookbackHours = DEFAULT_RIZE_LOOKBACK_HOURS
+): Promise<RizeSyncResult> {
   const { useScheduleStore } = await import("@/stores/scheduleStore");
+
+  if (isSyncEnabled()) {
+    const key = getStoredSyncKey();
+    if (key) await pullFromCloud(key);
+  }
+
   const pulled = await pullRizeEvents(lookbackHours);
   if ("error" in pulled) {
     return {
@@ -107,8 +127,8 @@ export async function syncRizeToCalendar(lookbackHours = 168): Promise<RizeSyncR
   if (isSyncEnabled()) {
     const key = getStoredSyncKey();
     if (key) {
-      const saved = await pushToServer(key);
-      pushed = Boolean(saved?.updatedAt);
+      const synced = await runCloudSync(key);
+      pushed = Boolean(synced.pushed);
     }
   }
 

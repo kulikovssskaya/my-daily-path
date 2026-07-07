@@ -1,8 +1,10 @@
 "use client";
 
 import * as React from "react";
+import { ChevronRight } from "lucide-react";
 import { useEnglishStore } from "@/stores/englishStore";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { checkAnswer } from "@/lib/englishQuiz";
 
@@ -25,17 +27,20 @@ export function QuizPanel() {
   const answerQuiz = useEnglishStore((s) => s.answerQuiz);
   const nextQuiz = useEnglishStore((s) => s.nextQuiz);
   const startQuiz = useEnglishStore((s) => s.startQuiz);
+  const recordMatchingPair = useEnglishStore((s) => s.recordMatchingPair);
+  const completeMatching = useEnglishStore((s) => s.completeMatching);
   const vocabulary = useEnglishStore((s) => s.vocabulary);
 
   const [selected, setSelected] = React.useState<string | null>(null);
   const [feedback, setFeedback] = React.useState<"correct" | "wrong" | null>(null);
-  const [showMatching, setShowMatching] = React.useState(true);
   const [matched, setMatched] = React.useState<Set<string>>(new Set());
   const [pairStyle, setPairStyle] = React.useState<Record<string, number>>({});
   const [pickedTerm, setPickedTerm] = React.useState<string | null>(null);
+  const [matchingReady, setMatchingReady] = React.useState(false);
 
   const progress = session?.quizProgress ?? 0;
   const q = quizQuestions[progress];
+  const showMatching = session ? !session.matchingDone : false;
 
   React.useEffect(() => {
     if (session?.phase === "quiz" && quizQuestions.length === 0) {
@@ -44,17 +49,45 @@ export function QuizPanel() {
   }, [session?.phase, quizQuestions.length, startQuiz]);
 
   React.useEffect(() => {
-    if (
-      showMatching ||
-      session?.phase !== "quiz" ||
-      quizQuestions.length === 0 ||
-      progress < quizQuestions.length
-    ) {
-      return;
-    }
-    const t = setTimeout(() => nextQuiz(), 300);
-    return () => clearTimeout(t);
-  }, [showMatching, session?.phase, progress, quizQuestions.length, nextQuiz]);
+    setSelected(null);
+    setFeedback(null);
+  }, [progress, q?.id]);
+
+  const goNext = React.useCallback(() => {
+    if (!q || feedback === null || selected === null) return;
+    const isLast = progress + 1 >= quizQuestions.length;
+    answerQuiz(q.id, selected);
+    if (isLast) nextQuiz();
+  }, [
+    q,
+    feedback,
+    selected,
+    answerQuiz,
+    progress,
+    quizQuestions.length,
+    nextQuiz,
+  ]);
+
+  const submitAnswer = React.useCallback(
+    (answer: string) => {
+      if (!q || feedback !== null) return;
+      const ok = checkAnswer(q, answer);
+      setFeedback(ok ? "correct" : "wrong");
+      setSelected(answer);
+    },
+    [q, feedback]
+  );
+
+  React.useEffect(() => {
+    if (feedback === null) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "Enter") return;
+      e.preventDefault();
+      goNext();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [feedback, goNext]);
 
   const words = (session?.selectedWordIds ?? [])
     .map((id) => vocabulary.find((w) => w.id === id))
@@ -63,29 +96,27 @@ export function QuizPanel() {
   const terms = words.map((w) => w!);
   const shuffledRu = React.useMemo(
     () => [...terms].sort(() => Math.random() - 0.5),
-    [session?.id, terms.map((t) => t.id).join(",")]
+    [terms]
   );
-
-  const submitAnswer = (answer: string) => {
-    if (!q || feedback !== null) return;
-    const ok = checkAnswer(q, answer);
-    setFeedback(ok ? "correct" : "wrong");
-    setSelected(answer);
-
-    setTimeout(() => {
-      answerQuiz(q.id, answer);
-      setSelected(null);
-      setFeedback(null);
-    }, ok ? 400 : 700);
-  };
 
   React.useEffect(() => {
     if (!showMatching || terms.length === 0) return;
     if (matched.size >= terms.length) {
-      const t = setTimeout(() => setShowMatching(false), 500);
-      return () => clearTimeout(t);
+      setMatchingReady(true);
     }
   }, [matched.size, showMatching, terms.length]);
+
+  React.useEffect(() => {
+    if (!matchingReady) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "Enter") return;
+      e.preventDefault();
+      completeMatching();
+      setMatchingReady(false);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [matchingReady, completeMatching]);
 
   if (!session) return null;
 
@@ -112,6 +143,7 @@ export function QuizPanel() {
       setMatched((m) => new Set(m).add(termId));
       setPairStyle((p) => ({ ...p, [termId]: colorIndex }));
       setPickedTerm(null);
+      recordMatchingPair(termId);
     };
 
     return (
@@ -157,6 +189,24 @@ export function QuizPanel() {
               </button>
             ))}
           </div>
+          {matchingReady && (
+            <div className="col-span-full space-y-2 border-t pt-4">
+              <p className="text-sm font-medium text-green-600">
+                All matched! +{session.matchingCorrect} toward session score
+              </p>
+              <Button
+                size="sm"
+                onClick={() => {
+                  completeMatching();
+                  setMatchingReady(false);
+                }}
+              >
+                Continue to questions
+                <ChevronRight className="size-4" />
+              </Button>
+              <p className="text-xs text-muted-foreground">Press Enter to continue</p>
+            </div>
+          )}
         </CardContent>
       </Card>
     );
@@ -190,20 +240,41 @@ export function QuizPanel() {
               "block w-full rounded-lg border px-4 py-3 text-left text-sm transition-colors",
               selected === opt &&
                 feedback === "correct" &&
-                "border-green-500 bg-green-500/15 line-through",
+                "border-green-500 bg-green-500/15",
               selected === opt &&
                 feedback === "wrong" &&
                 "border-destructive bg-destructive/10",
+              feedback !== null &&
+                opt === q.correctAnswer &&
+                selected !== opt &&
+                "border-green-500/70 bg-green-500/10",
               selected !== opt && feedback === null && "hover:bg-muted/50"
             )}
           >
             {opt}
           </button>
         ))}
-        {feedback === "wrong" && (
-          <p className="text-sm text-destructive">
-            Correct answer: {q.correctAnswer}
-          </p>
+        {feedback !== null && (
+          <div className="space-y-3 border-t pt-3">
+            <p
+              className={cn(
+                "text-sm font-medium",
+                feedback === "correct" ? "text-green-600" : "text-destructive"
+              )}
+            >
+              {feedback === "correct" ? "Correct!" : "Not quite."}
+            </p>
+            {feedback === "wrong" && (
+              <p className="text-sm text-muted-foreground">
+                Correct answer: <span className="font-medium">{q.correctAnswer}</span>
+              </p>
+            )}
+            <Button type="button" size="sm" onClick={goNext}>
+              {progress + 1 >= quizQuestions.length ? "Final test" : "Next"}
+              <ChevronRight className="size-4" />
+            </Button>
+            <p className="text-xs text-muted-foreground">Press Enter to continue</p>
+          </div>
         )}
       </CardContent>
     </Card>

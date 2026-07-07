@@ -335,7 +335,7 @@ function DayColumn({ title, date }: { title: string; date: Date }) {
         .filter((e) => e.start.slice(0, 10) === key)
         .filter((e) => !eventEchoesHabitOnDay(e, habits))
         .sort((a, b) => a.start.localeCompare(b.start)),
-    [events, key, occurrences]
+    [events, key, habits]
   );
 
   const timeline = React.useMemo(() => {

@@ -111,7 +111,11 @@ function parse(file: string): KbArticle {
 export function getAllArticles(): KbArticleMeta[] {
   return walk(KB_DIR)
     .map(parse)
-    .map(({ body: _body, ...meta }) => meta)
+    .map((article) => {
+      const { body: _body, ...meta } = article;
+      void _body;
+      return meta;
+    })
     .sort((a, b) => a.section.localeCompare(b.section, "ru"));
 }
 

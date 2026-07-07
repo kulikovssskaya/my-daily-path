@@ -22,11 +22,16 @@ export function FinalReviewPanel() {
 
   const word = words[index];
   const total = words.length;
+  const inputRef = React.useRef<HTMLInputElement>(null);
 
   React.useEffect(() => {
     setDraft("");
     setChecked(false);
     setWasCorrect(false);
+  }, [index, word?.id]);
+
+  React.useEffect(() => {
+    inputRef.current?.focus();
   }, [index, word?.id]);
 
   if (!session || session.phase !== "review" || !word) return null;
@@ -65,18 +70,19 @@ export function FinalReviewPanel() {
         <p className="text-2xl font-bold">{word.term}</p>
 
         <input
+          ref={inputRef}
           type="text"
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
           onKeyDown={(e) => {
-            if (e.key === "Enter") {
-              if (checked) handleNext();
-              else handleCheck();
-            }
+            if (e.key !== "Enter") return;
+            e.preventDefault();
+            if (checked) handleNext();
+            else handleCheck();
           }}
-          disabled={checked}
+          readOnly={checked}
           placeholder="Your answer..."
-          className="w-full rounded-lg border bg-background px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-60"
+          className="w-full rounded-lg border bg-background px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring read-only:opacity-60"
         />
 
         {!checked ? (

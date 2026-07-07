@@ -46,3 +46,4 @@ probe*.txt
 dev-autostart.log
 dev-server.log
 scripts/autostart-paths.ps1
+.vercel

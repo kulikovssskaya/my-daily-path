@@ -16,6 +16,7 @@ export async function POST(req: Request) {
       : {};
   const recentLearning = Array.isArray(body?.recentLearning) ? body.recentLearning : [];
   const dailyLogs = Array.isArray(body?.dailyLogs) ? body.dailyLogs : [];
+  const calendarSessions = Array.isArray(body?.calendarSessions) ? body.calendarSessions : [];
 
   const fallback = (): ProgressReport => {
     const totalHours = tracks.reduce(
@@ -47,6 +48,7 @@ export async function POST(req: Request) {
         applicationsByStatus,
         recentLearning,
         dailyLogs,
+        calendarSessions,
       }),
       schema: progressReportSchema,
       fallback,

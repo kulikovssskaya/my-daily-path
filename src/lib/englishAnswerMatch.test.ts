@@ -19,6 +19,11 @@ describe("englishAnswerMatch", () => {
     expect(matchesTranslation("практический", "практический опыт")).toBe(true);
   });
 
+  it("accepts close Russian synonyms (разложить ≈ разобрать)", () => {
+    expect(matchesTranslation("разложить на части", "разобрать на части")).toBe(true);
+    expect(matchesTranslation("разложить на части", "разобрать")).toBe(true);
+  });
+
   it("final review accepts term or translation", () => {
     expect(
       matchesFinalReviewAnswer("stakeholder", "stakeholder", "заинтересованная сторона")

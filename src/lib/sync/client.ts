@@ -6,7 +6,6 @@ export const SYNC_STORAGE_KEYS = [
   "mdp-memory",
   "mdp-cooking",
   "mdp-career",
-  "mdp-timer",
   "mdp-english",
   "mdp-permanent-archive",
 ] as const;
@@ -28,9 +27,28 @@ export function collectLocalBlobs(): Partial<Record<SyncStorageKey, string>> {
   return blobs;
 }
 
-export function applyBlobsToLocal(blobs: Partial<Record<SyncStorageKey, string>>) {
+import { mergeBlobsSafely } from "@/lib/sync/blobUtils";
+
+export function applyBlobsToLocal(
+  blobs: Partial<Record<SyncStorageKey, string>>,
+  merge = true
+) {
+  if (typeof window === "undefined") return;
+  if (!merge) {
+    for (const key of SYNC_STORAGE_KEYS) {
+      const raw = blobs[key];
+      if (raw) localStorage.setItem(key, raw);
+    }
+    return;
+  }
+  const existing: Partial<Record<SyncStorageKey, string>> = {};
   for (const key of SYNC_STORAGE_KEYS) {
-    const raw = blobs[key];
+    const raw = localStorage.getItem(key);
+    if (raw) existing[key] = raw;
+  }
+  const merged = mergeBlobsSafely(existing, blobs);
+  for (const key of SYNC_STORAGE_KEYS) {
+    const raw = merged[key];
     if (raw) localStorage.setItem(key, raw);
   }
 }

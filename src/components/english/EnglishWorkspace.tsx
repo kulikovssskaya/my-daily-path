@@ -84,8 +84,12 @@ function SettingsPanel() {
 
   const toggleCategory = (cat: EnglishCategory) => {
     const set = new Set(settings.focusCategories);
-    if (set.has(cat)) set.delete(cat);
-    else set.add(cat);
+    if (set.has(cat)) {
+      if (set.size <= 1) return;
+      set.delete(cat);
+    } else {
+      set.add(cat);
+    }
     updateSettings({ focusCategories: [...set] });
   };
 
@@ -138,8 +142,23 @@ function SettingsPanel() {
           />
         </div>
         <div>
+          <label className="text-xs font-medium text-muted-foreground">
+            Level
+          </label>
+          <select
+            value={settings.level}
+            onChange={(e) =>
+              updateSettings({ level: e.target.value as "B1" | "B1-B2" })
+            }
+            className="mt-1 rounded-lg border bg-background px-2 py-1"
+          >
+            <option value="B1">B1</option>
+            <option value="B1-B2">B1–B2</option>
+          </select>
+        </div>
+        <div>
           <p className="mb-2 text-xs font-medium text-muted-foreground">
-            Focus categories
+            Focus categories (at least one)
           </p>
           <div className="flex flex-wrap gap-2">
             {ALL_ENGLISH_CATEGORIES.map((cat) => (
@@ -321,8 +340,12 @@ function VocabularyDropPanel() {
 
 function SessionCompletePanel() {
   const session = useEnglishStore((s) => s.activeSession);
+  const quizQuestions = useEnglishStore((s) => s.quizQuestions);
   const resetTodaySession = useEnglishStore((s) => s.resetTodaySession);
   if (!session || session.phase !== "complete") return null;
+
+  const wordCount = session.selectedWordIds.length;
+  const reviewCorrect = Object.values(session.reviewAnswers ?? {}).filter(Boolean).length;
 
   return (
     <Card className="border-primary/30 bg-primary/5">
@@ -331,6 +354,13 @@ function SessionCompletePanel() {
       </CardHeader>
       <CardContent className="space-y-4">
         <p className="text-3xl font-bold">{session.finalScore ?? 0}%</p>
+        <p className="text-sm text-muted-foreground">
+          Final review {reviewCorrect}/{wordCount}
+        </p>
+        <p className="text-xs text-muted-foreground">
+          Practice (not scored): Matching {session.matchingCorrect}/{wordCount} · Quiz{" "}
+          {session.quizCorrect}/{quizQuestions.length}
+        </p>
         <ul className="list-inside list-disc space-y-1 text-sm text-muted-foreground">
           {(session.recommendations ?? []).map((t) => (
             <li key={t}>{t}</li>
@@ -346,7 +376,7 @@ function PhaseSteps() {
   const phase = useEnglishStore((s) => s.activeSession?.phase);
   const steps = [
     { key: "select", label: "Vocabulary" },
-    { key: "flashcards", label: "Study card" },
+    { key: "flashcards", label: "Study list" },
     { key: "quiz", label: "Practice" },
     { key: "review", label: "Final test" },
     { key: "complete", label: "Done" },
@@ -375,7 +405,14 @@ export function EnglishWorkspace() {
   const phase = useEnglishStore((s) => s.activeSession?.phase);
   const activeSession = useEnglishStore((s) => s.activeSession);
   const history = useEnglishStore((s) => s.history);
+  const ensureHistoryBackfill = useEnglishStore((s) => s.ensureHistoryBackfill);
+  const expireStaleSession = useEnglishStore((s) => s.expireStaleSession);
   const today = todayDateKey();
+
+  React.useEffect(() => {
+    expireStaleSession();
+    ensureHistoryBackfill();
+  }, [ensureHistoryBackfill, expireStaleSession]);
 
   if (!mounted) {
     return <div className="h-64 animate-pulse rounded-xl border bg-card" />;

@@ -1,7 +1,6 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import type {
-  EnglishCategory,
   EnglishDailySession,
   EnglishDayRecord,
   EnglishSettings,
@@ -21,6 +20,12 @@ import {
 import { aiWordToDomain } from "@/lib/englishConstants";
 import { buildQuizQuestions, sessionScore, checkAnswer } from "@/lib/englishQuiz";
 import { matchesFinalReviewAnswer } from "@/lib/englishAnswerMatch";
+import { computeStatsFromHistory } from "@/lib/englishStats";
+import {
+  finalizeEnglishState,
+  mergeEnglishPersistStates,
+  type EnglishPersistState,
+} from "@/lib/sync/englishBlobMerge";
 import type { EnglishVocabDrop } from "@/lib/ai/schemas";
 
 const DEFAULT_SETTINGS: EnglishSettings = {
@@ -55,6 +60,8 @@ interface EnglishState {
   setUserExample: (wordId: string, example: string) => void;
   rateFlashcard: (wordId: string, result: "know" | "unknown") => void;
   finishStudyCard: () => void;
+  recordMatchingPair: (wordId: string) => void;
+  completeMatching: () => void;
   startQuiz: () => void;
   answerQuiz: (questionId: string, answer: string) => boolean;
   nextQuiz: () => void;
@@ -63,6 +70,8 @@ interface EnglishState {
   getSessionWords: () => EnglishVocabWord[];
   getDueWords: () => EnglishVocabWord[];
   resetTodaySession: () => void;
+  ensureHistoryBackfill: () => void;
+  expireStaleSession: () => void;
 }
 
 function emptySession(dateKey: string, dropWordIds: string[]): EnglishDailySession {
@@ -74,6 +83,8 @@ function emptySession(dateKey: string, dropWordIds: string[]): EnglishDailySessi
     phase: "select",
     flashcardIndex: 0,
     flashcardResults: {},
+    matchingCorrect: 0,
+    matchingDone: false,
     quizProgress: 0,
     quizCorrect: 0,
     reviewAnswers: {},
@@ -188,20 +199,48 @@ export const useEnglishStore = create<EnglishState>()(
       rateFlashcard: (wordId, result) =>
         set((s) => {
           if (!s.activeSession) return s;
+          if (s.activeSession.flashcardResults[wordId]) return s;
+
           const word = s.vocabulary.find((w) => w.id === wordId);
           const srs = { ...s.srs };
           if (word) {
             const existing = srs[wordId] ?? createInitialSRS(wordId, word.term);
             srs[wordId] = advanceSRS(existing, result === "know");
           }
+
+          const flashcardResults = {
+            ...s.activeSession.flashcardResults,
+            [wordId]: result,
+          };
+          const sessionWords = s.activeSession.selectedWordIds;
+          const ratedCount = sessionWords.filter((id) => flashcardResults[id]).length;
+
+          if (ratedCount >= sessionWords.length) {
+            const sessionWordsObjs = sessionWords
+              .map((id) => s.vocabulary.find((w) => w.id === id))
+              .filter(Boolean) as EnglishVocabWord[];
+            return {
+              srs,
+              quizQuestions: buildQuizQuestions(sessionWordsObjs),
+              activeSession: {
+                ...s.activeSession,
+                phase: "quiz",
+                flashcardIndex: sessionWords.length,
+                flashcardResults,
+                matchingCorrect: 0,
+                matchingDone: false,
+                quizProgress: 0,
+                quizCorrect: 0,
+              },
+            };
+          }
+
           return {
             srs,
             activeSession: {
               ...s.activeSession,
-              flashcardResults: {
-                ...s.activeSession.flashcardResults,
-                [wordId]: result,
-              },
+              flashcardIndex: ratedCount,
+              flashcardResults,
             },
           };
         }),
@@ -218,9 +257,37 @@ export const useEnglishStore = create<EnglishState>()(
               ...s.activeSession,
               phase: "quiz",
               flashcardIndex: sessionWords.length,
+              matchingCorrect: 0,
+              matchingDone: false,
               quizProgress: 0,
               quizCorrect: 0,
             },
+          };
+        }),
+
+      recordMatchingPair: (wordId) =>
+        set((s) => {
+          if (!s.activeSession) return s;
+          const word = s.vocabulary.find((w) => w.id === wordId);
+          const srs = { ...s.srs };
+          if (word) {
+            const existing = srs[wordId] ?? createInitialSRS(wordId, word.term);
+            srs[wordId] = advanceSRS(existing, true);
+          }
+          return {
+            srs,
+            activeSession: {
+              ...s.activeSession,
+              matchingCorrect: s.activeSession.matchingCorrect + 1,
+            },
+          };
+        }),
+
+      completeMatching: () =>
+        set((s) => {
+          if (!s.activeSession) return s;
+          return {
+            activeSession: { ...s.activeSession, matchingDone: true },
           };
         }),
 
@@ -240,8 +307,7 @@ export const useEnglishStore = create<EnglishState>()(
         if (!activeSession) return false;
         const q = quizQuestions.find((x) => x.id === questionId);
         if (!q) return false;
-        const correct =
-          answer.trim().toLowerCase() === q.correctAnswer.trim().toLowerCase();
+        const correct = checkAnswer(q, answer);
         set({
           activeSession: {
             ...activeSession,
@@ -275,7 +341,18 @@ export const useEnglishStore = create<EnglishState>()(
 
       submitFinalReview: (answers) => {
         const s = get();
-        if (!s.activeSession) return { score: 0, recommendations: [] };
+        if (!s.activeSession || s.activeSession.phase === "complete") {
+          return { score: 0, recommendations: [] };
+        }
+
+        const dateKey = s.activeSession.dateKey;
+        if (s.history.some((h) => h.dateKey === dateKey)) {
+          return {
+            score: s.activeSession.finalScore ?? 0,
+            recommendations: s.activeSession.recommendations ?? [],
+          };
+        }
+
         const words = s.getSessionWords();
         let correct = 0;
         const unknownTerms: string[] = [];
@@ -289,9 +366,9 @@ export const useEnglishStore = create<EnglishState>()(
           else unknownTerms.push(word.term);
         }
 
-        const score = sessionScore(correct, words.length);
+        const reviewScore = sessionScore(correct, words.length);
+        const score = reviewScore;
         const recommendations = scoreRecommendations(score, unknownTerms);
-        const dateKey = todayDateKey();
         const streakUpdate = updateStreak(
           s.stats.streak,
           s.stats.lastStudyDate,
@@ -313,14 +390,7 @@ export const useEnglishStore = create<EnglishState>()(
           completedAt: new Date().toISOString(),
         };
 
-        const totalSessions = s.stats.totalSessionsCompleted + 1;
-        const avg =
-          s.stats.totalSessionsCompleted === 0
-            ? score
-            : Math.round(
-                (s.stats.averageScore * s.stats.totalSessionsCompleted + score) /
-                  totalSessions
-              );
+        const history = [record, ...s.history].slice(0, 120);
 
         set({
           srs,
@@ -332,13 +402,11 @@ export const useEnglishStore = create<EnglishState>()(
             reviewAnswers,
             completedAt: new Date().toISOString(),
           },
-          history: [record, ...s.history].slice(0, 120),
+          history,
           stats: {
+            ...computeStatsFromHistory(history),
             streak: streakUpdate.streak,
             lastStudyDate: streakUpdate.lastStudyDate,
-            totalWordsLearned: s.stats.totalWordsLearned + words.length,
-            totalSessionsCompleted: totalSessions,
-            averageScore: avg,
           },
         });
 
@@ -365,20 +433,81 @@ export const useEnglishStore = create<EnglishState>()(
 
       resetTodaySession: () =>
         set({ activeSession: null, quizQuestions: [], favoriteWordIds: [] }),
+
+      ensureHistoryBackfill: () =>
+        set((s) => finalizeEnglishState(s)),
+
+      expireStaleSession: () =>
+        set((s) => {
+          const sess = s.activeSession;
+          if (!sess || sess.phase === "complete") return s;
+          if (sess.dateKey === todayDateKey()) return s;
+          return { activeSession: null, quizQuestions: [] };
+        }),
     }),
     {
       name: "mdp-english",
+      version: 4,
+      migrate: (persisted) => {
+        const wrapper = (persisted ?? {}) as {
+          state?: Partial<EnglishState>;
+          version?: number;
+        };
+        const state = wrapper.state ?? (persisted as Partial<EnglishState>);
+        const activeSession = state.activeSession
+          ? {
+              ...state.activeSession,
+              matchingCorrect: state.activeSession.matchingCorrect ?? 0,
+              matchingDone: state.activeSession.matchingDone ?? false,
+            }
+          : null;
+        const base = {
+          settings: { ...DEFAULT_SETTINGS, ...state.settings },
+          vocabulary: state.vocabulary ?? [],
+          favoriteWordIds: state.favoriteWordIds ?? [],
+          activeSession,
+          srs: state.srs ?? {},
+          history: state.history ?? [],
+          stats: { ...DEFAULT_STATS, ...state.stats },
+        };
+        return finalizeEnglishState(base);
+      },
       merge: (persisted, current) => {
-        const p = (persisted ?? {}) as Partial<EnglishState>;
+        const p = (persisted ?? {}) as Partial<EnglishState> & {
+          state?: Partial<EnglishState>;
+        };
+        const state = p.state ?? p;
+        const currentSlice: EnglishPersistState = {
+          settings: current.settings,
+          vocabulary: current.vocabulary,
+          favoriteWordIds: current.favoriteWordIds,
+          activeSession: current.activeSession,
+          srs: current.srs,
+          history: current.history,
+          stats: current.stats,
+        };
+        const persistedSlice: EnglishPersistState = {
+          settings: { ...DEFAULT_SETTINGS, ...state.settings },
+          vocabulary: state.vocabulary ?? [],
+          favoriteWordIds: state.favoriteWordIds ?? [],
+          activeSession: state.activeSession
+            ? {
+                ...state.activeSession,
+                matchingCorrect: state.activeSession.matchingCorrect ?? 0,
+                matchingDone: state.activeSession.matchingDone ?? false,
+              }
+            : null,
+          srs: state.srs ?? {},
+          history: state.history ?? [],
+          stats: { ...DEFAULT_STATS, ...state.stats },
+        };
+        const merged = finalizeEnglishState(
+          mergeEnglishPersistStates(currentSlice, persistedSlice)
+        );
         return {
           ...current,
-          ...p,
-          settings: { ...DEFAULT_SETTINGS, ...p.settings },
-          stats: { ...DEFAULT_STATS, ...p.stats },
-          vocabulary: p.vocabulary ?? current.vocabulary,
-          favoriteWordIds: p.favoriteWordIds ?? [],
-          srs: p.srs ?? {},
-          history: p.history ?? [],
+          ...merged,
+          quizQuestions: current.quizQuestions,
         };
       },
       partialize: (s) => ({

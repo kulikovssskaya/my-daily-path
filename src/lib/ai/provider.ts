@@ -94,8 +94,7 @@ async function openAICompatible(
   });
 
   if (!res.ok) {
-    const text = await res.text().catch(() => "");
-    throw new Error(`${cfg.id} API error ${res.status}: ${text.slice(0, 500)}`);
+    throw new Error(`${cfg.id} API error (${res.status})`);
   }
   const data = await res.json();
   return data?.choices?.[0]?.message?.content ?? "";
@@ -131,8 +130,7 @@ async function anthropic(
   });
 
   if (!res.ok) {
-    const text = await res.text().catch(() => "");
-    throw new Error(`anthropic API error ${res.status}: ${text.slice(0, 500)}`);
+    throw new Error(`anthropic API error (${res.status})`);
   }
   const data = await res.json();
   return data?.content?.[0]?.text ?? "";

@@ -112,11 +112,16 @@ export function usePlanner() {
           }),
         });
 
-        const data = (await res.json()) as PlanResponse & {
+        let data: PlanResponse & {
           provider?: string;
           usedFallback?: boolean;
           error?: string;
         };
+        try {
+          data = (await res.json()) as typeof data;
+        } catch {
+          throw new Error(`Invalid response (${res.status})`);
+        }
 
         if (!res.ok || data.error) {
           throw new Error(data.error || `Error ${res.status}`);

@@ -8,12 +8,12 @@ import listPlugin from "@fullcalendar/list";
 import interactionPlugin from "@fullcalendar/interaction";
 import { useScheduleStore } from "@/stores/scheduleStore";
 import { CATEGORY_META, CATEGORY_OPTIONS } from "@/lib/categories";
-import { habitRecurringEvents, habitOccurrencesForDate } from "@/lib/habits";
-import { eventDuplicatesHabit, eventEchoesHabitOnDay } from "@/lib/habitDedupe";
+import { habitRecurringEvents } from "@/lib/habits";
+import { eventEchoesHabitOnDay } from "@/lib/habitDedupe";
 import { toNaiveISO } from "@/lib/utils";
 import type { EventCategory, EventStatus, ScheduleEvent } from "@/types";
 import { Button } from "@/components/ui/button";
-import { Trash2, X } from "lucide-react";
+import { Trash2, X, Lock } from "lucide-react";
 
 const STATUS_LABEL: Record<EventStatus, string> = {
   planned: "Planned",
@@ -28,7 +28,8 @@ function EditModal({
   event: ScheduleEvent;
   onClose: () => void;
 }) {
-  const { updateEvent, removeEvent } = useScheduleStore();
+  const { updateEvent, removeEvent, unlockEvent } = useScheduleStore();
+  const locked = Boolean(event.locked);
   const timeOf = (iso: string) => iso.slice(11, 16);
   const withTime = (iso: string, hhmm: string) => `${iso.slice(0, 10)}T${hhmm}:00`;
 
@@ -43,12 +44,20 @@ function EditModal({
           </Button>
         </div>
 
+        {locked && (
+          <p className="flex items-center gap-1.5 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-800 dark:text-amber-200">
+            <Lock className="size-3.5 shrink-0" />
+            Locked — unlock to edit or delete.
+          </p>
+        )}
+
         <div className="space-y-1.5">
           <label className="text-xs text-muted-foreground">Title</label>
           <input
             value={event.title}
+            disabled={locked}
             onChange={(e) => updateEvent(event.id, { title: e.target.value })}
-            className="w-full rounded-lg border bg-background px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            className="w-full rounded-lg border bg-background px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-60"
           />
         </div>
 
@@ -57,18 +66,20 @@ function EditModal({
             <label className="text-xs text-muted-foreground">Start</label>
             <input
               type="time"
+              disabled={locked}
               value={timeOf(event.start)}
               onChange={(e) => updateEvent(event.id, { start: withTime(event.start, e.target.value) })}
-              className="w-full rounded-lg border bg-background px-3 py-2 text-sm"
+              className="w-full rounded-lg border bg-background px-3 py-2 text-sm disabled:opacity-60"
             />
           </div>
           <div className="space-y-1.5">
             <label className="text-xs text-muted-foreground">End</label>
             <input
               type="time"
+              disabled={locked}
               value={timeOf(event.end)}
               onChange={(e) => updateEvent(event.id, { end: withTime(event.end, e.target.value) })}
-              className="w-full rounded-lg border bg-background px-3 py-2 text-sm"
+              className="w-full rounded-lg border bg-background px-3 py-2 text-sm disabled:opacity-60"
             />
           </div>
         </div>
@@ -77,9 +88,10 @@ function EditModal({
           <div className="space-y-1.5">
             <label className="text-xs text-muted-foreground">Category</label>
             <select
+              disabled={locked}
               value={event.category}
               onChange={(e) => updateEvent(event.id, { category: e.target.value as EventCategory })}
-              className="w-full rounded-lg border bg-background px-3 py-2 text-sm"
+              className="w-full rounded-lg border bg-background px-3 py-2 text-sm disabled:opacity-60"
             >
               {CATEGORY_OPTIONS.map((o) => (
                 <option key={o.value} value={o.value}>
@@ -91,9 +103,10 @@ function EditModal({
           <div className="space-y-1.5">
             <label className="text-xs text-muted-foreground">Status</label>
             <select
+              disabled={locked}
               value={event.status}
               onChange={(e) => updateEvent(event.id, { status: e.target.value as EventStatus })}
-              className="w-full rounded-lg border bg-background px-3 py-2 text-sm"
+              className="w-full rounded-lg border bg-background px-3 py-2 text-sm disabled:opacity-60"
             >
               {(Object.keys(STATUS_LABEL) as EventStatus[]).map((s) => (
                 <option key={s} value={s}>
@@ -114,17 +127,23 @@ function EditModal({
         ) : null}
 
         <div className="flex justify-between pt-1">
-          <Button
-            variant="ghost"
-            className="text-destructive"
-            onClick={() => {
-              removeEvent(event.id);
-              onClose();
-            }}
-          >
-            <Trash2 className="size-4" />
-            Delete
-          </Button>
+          {locked ? (
+            <Button variant="outline" onClick={() => unlockEvent(event.id)}>
+              Unlock
+            </Button>
+          ) : (
+            <Button
+              variant="ghost"
+              className="text-destructive"
+              onClick={() => {
+                removeEvent(event.id);
+                onClose();
+              }}
+            >
+              <Trash2 className="size-4" />
+              Delete
+            </Button>
+          )}
           <Button onClick={onClose}>Done</Button>
         </div>
       </div>
