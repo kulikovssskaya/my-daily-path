@@ -379,7 +379,7 @@ function DayColumn({ title, date }: { title: string; date: Date }) {
 
       {timeline.length === 0 ? (
         <p className="rounded-lg border border-dashed px-3 py-6 text-center text-sm text-muted-foreground">
-          Empty. Add blocks manually below or sync from Calendar / Rize.
+          Empty. Add blocks manually below or open Calendar.
         </p>
       ) : (
         <div className="space-y-2">

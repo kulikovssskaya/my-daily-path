@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { checkAnswer } from "@/lib/englishQuiz";
+import type { EnglishVocabWord } from "@/types";
 
 const PAIR_STYLES = [
   "bg-sky-500/20 border-sky-400 text-sky-950 dark:text-sky-100",
@@ -89,14 +90,26 @@ export function QuizPanel() {
     return () => window.removeEventListener("keydown", onKey);
   }, [feedback, goNext]);
 
-  const words = (session?.selectedWordIds ?? [])
-    .map((id) => vocabulary.find((w) => w.id === id))
-    .filter(Boolean);
+  const selectedWordIdsKey = session?.selectedWordIds.join(",") ?? "";
 
-  const terms = words.map((w) => w!);
+  const terms = React.useMemo(() => {
+    const ids = session?.selectedWordIds ?? [];
+    return ids
+      .map((id) => vocabulary.find((w) => w.id === id))
+      .filter((w): w is EnglishVocabWord => !!w);
+  }, [selectedWordIdsKey, vocabulary]);
+
+  const shuffledRuIds = React.useMemo(
+    () => [...(session?.selectedWordIds ?? [])].sort(() => Math.random() - 0.5),
+    [selectedWordIdsKey]
+  );
+
   const shuffledRu = React.useMemo(
-    () => [...terms].sort(() => Math.random() - 0.5),
-    [terms]
+    () =>
+      shuffledRuIds
+        .map((id) => vocabulary.find((w) => w.id === id))
+        .filter((w): w is EnglishVocabWord => !!w),
+    [shuffledRuIds, vocabulary]
   );
 
   React.useEffect(() => {

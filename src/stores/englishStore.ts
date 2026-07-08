@@ -346,12 +346,6 @@ export const useEnglishStore = create<EnglishState>()(
         }
 
         const dateKey = s.activeSession.dateKey;
-        if (s.history.some((h) => h.dateKey === dateKey)) {
-          return {
-            score: s.activeSession.finalScore ?? 0,
-            recommendations: s.activeSession.recommendations ?? [],
-          };
-        }
 
         const words = s.getSessionWords();
         let correct = 0;
@@ -390,7 +384,10 @@ export const useEnglishStore = create<EnglishState>()(
           completedAt: new Date().toISOString(),
         };
 
-        const history = [record, ...s.history].slice(0, 120);
+        const history = [
+          record,
+          ...s.history.filter((h) => h.dateKey !== dateKey),
+        ].slice(0, 120);
 
         set({
           srs,

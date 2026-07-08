@@ -69,19 +69,19 @@ export async function rehydrateAllStoresAsync(): Promise<void> {
 
 export function getLocalSyncDiagnostics(): {
   scheduleEvents: number;
-  rizeEvents: number;
+  importedEvents: number;
   latestEventDay: string | null;
   englishDays: number;
   englishAvg: number | null;
 } {
   const schedule = useScheduleStore.getState();
-  const rizeEvents = schedule.events.filter((e) => e.meta?.rizeEntryId).length;
+  const importedEvents = schedule.events.filter((e) => e.meta?.rizeEntryId).length;
   const days = schedule.events.map((e) => e.start.slice(0, 10)).sort();
   const english = useEnglishStore.getState();
 
   return {
     scheduleEvents: schedule.events.length,
-    rizeEvents,
+    importedEvents,
     latestEventDay: days.length > 0 ? days[days.length - 1]! : null,
     englishDays: english.history.length,
     englishAvg:

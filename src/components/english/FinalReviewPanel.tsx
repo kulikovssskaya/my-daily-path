@@ -15,7 +15,7 @@ export function FinalReviewPanel() {
 
   const words = getSessionWords();
   const [index, setIndex] = React.useState(0);
-  const [answers, setAnswers] = React.useState<Record<string, string>>({});
+  const answersRef = React.useRef<Record<string, string>>({});
   const [draft, setDraft] = React.useState("");
   const [checked, setChecked] = React.useState(false);
   const [wasCorrect, setWasCorrect] = React.useState(false);
@@ -39,19 +39,20 @@ export function FinalReviewPanel() {
   const handleCheck = () => {
     if (!draft.trim() || checked) return;
     const ok = matchesFinalReviewAnswer(draft, word.term, word.translationRu);
-    setAnswers((a) => ({ ...a, [word.id]: draft.trim() }));
+    const nextAnswers = { ...answersRef.current, [word.id]: draft.trim() };
+    answersRef.current = nextAnswers;
     setWasCorrect(ok);
     setChecked(true);
   };
 
   const handleNext = () => {
     if (!checked) return;
-    const allAnswers = { ...answers, [word.id]: draft.trim() };
+    const allAnswers = { ...answersRef.current, [word.id]: draft.trim() };
+    answersRef.current = allAnswers;
     if (index + 1 >= total) {
       submitFinalReview(allAnswers);
       return;
     }
-    setAnswers(allAnswers);
     setIndex((i) => i + 1);
   };
 
@@ -104,7 +105,7 @@ export function FinalReviewPanel() {
               <p className="mt-1 font-medium">{word.translationRu}</p>
               <p className="mt-1 text-muted-foreground">{word.term}</p>
             </div>
-            <Button onClick={handleNext}>
+            <Button type="button" onClick={handleNext}>
               {index + 1 >= total ? "See results" : "Next"}
               <ChevronRight className="size-4" />
             </Button>

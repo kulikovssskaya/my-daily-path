@@ -368,7 +368,7 @@ export async function fetchCloudSyncStatus(syncKey: string): Promise<{
 
   scheduleEvents: number;
 
-  rizeEvents: number;
+  importedEvents: number;
 
   latestEventDay: string | null;
 
@@ -386,7 +386,7 @@ export async function fetchCloudSyncStatus(syncKey: string): Promise<{
 
   let scheduleEvents = 0;
 
-  let rizeEvents = 0;
+  let importedEvents = 0;
 
   let latestEventDay: string | null = null;
 
@@ -412,7 +412,7 @@ export async function fetchCloudSyncStatus(syncKey: string): Promise<{
 
       scheduleEvents = events.length;
 
-      rizeEvents = events.filter((e) => e.meta?.rizeEntryId).length;
+      importedEvents = events.filter((e) => e.meta?.rizeEntryId).length;
 
       const days = events.map((e) => e.start.slice(0, 10)).sort();
 
@@ -460,7 +460,7 @@ export async function fetchCloudSyncStatus(syncKey: string): Promise<{
 
     scheduleEvents,
 
-    rizeEvents,
+    importedEvents,
 
     latestEventDay,
 

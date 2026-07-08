@@ -5,6 +5,7 @@ import {
 import { MobileTopbar } from "@/components/layout/MobileTopbar";
 import { SwipeArea } from "@/components/layout/SwipeArea";
 import { SyncGate } from "@/components/layout/SyncGate";
+import { WorkTimerBar } from "@/components/timer/WorkTimerBar";
 
 export default function DashboardLayout({
   children,
@@ -19,7 +20,10 @@ export default function DashboardLayout({
           <MobileDrawer />
           <div className="flex min-w-0 flex-1 flex-col">
             <MobileTopbar />
-            <main className="relative min-h-0 flex-1">{children}</main>
+            <main className="relative flex min-h-0 flex-1 flex-col">
+              <WorkTimerBar />
+              {children}
+            </main>
           </div>
         </div>
       </SyncGate>

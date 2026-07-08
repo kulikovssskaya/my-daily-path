@@ -1,5 +1,28 @@
-import { looksLikeOrphanRizeCalendarEvent } from "@/lib/integrations/rize";
 import type { Habit, ScheduleEvent } from "@/types";
+
+function isRizeAiNarrative(text: string): boolean {
+  const t = text.trim();
+  if (t.length >= 72) return true;
+  return /^(conducted|dedicated|spent|worked|focused|reviewed|completed|engaged|utilized|performed|continued|researched|studied|implemented|explored|configured|developed|managed)\b/i.test(
+    t
+  );
+}
+
+/** Legacy Rize imports without rizeEntryId — used only for cloud dedup. */
+function looksLikeOrphanRizeCalendarEvent(ev: {
+  title: string;
+  notes?: string;
+  status?: string;
+  meta?: { rizeEntryId?: string };
+}): boolean {
+  if (ev.meta?.rizeEntryId) return false;
+  if (ev.notes?.includes("Tag:") || ev.notes?.includes("Titles:")) return true;
+  if (ev.status === "done" && isRizeAiNarrative(ev.title)) return true;
+  return (
+    /\d+\s*%/.test(ev.title) &&
+    /chrome|telegram|study|cursor|edge|firefox/i.test(ev.title)
+  );
+}
 
 export interface SchedulePersistState {
   events: ScheduleEvent[];

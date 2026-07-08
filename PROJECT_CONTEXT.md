@@ -2,9 +2,10 @@
 
 > **Главный источник контекста проекта My Daily Path.**  
 > Перед выполнением любой задачи сначала обращайся к этому документу.  
-> При изменениях в коде обновляй соответствующие разделы.
+> При изменениях в коде обновляй соответствующие разделы.  
+> **После изменений в коде всегда деплой на Vercel production** (см. [§12.5](#125-deployment) и [§13](#13-правила-поддержки-документа)).
 
-**Последнее обновление:** 2026-07-08 (технический аудит)
+**Последнее обновление:** 2026-07-08
 
 ---
 
@@ -1005,6 +1006,9 @@ SyncGate boot / periodic
 | build | `next build` | Production build |
 | start | `next start` | Production server |
 | test | `vitest run` | Unit tests |
+| lint | `next lint --dir src` | ESLint |
+| **deploy** | test + lint + build + `vercel deploy --prod` | **Обязательный production deploy** |
+| deploy:prod | `npx vercel deploy --prod --yes` | Только Vercel deploy (без checks) |
 | sync:restore | `node scripts/sync-restore.mjs` | Restore cloud backup |
 | app:install | Windows app installer | Desktop wrapper |
 
@@ -1028,11 +1032,57 @@ SyncGate boot / periodic
 
 ### 12.5 Deployment
 
-- **Platform:** Vercel (recommended)
+- **Platform:** Vercel (production)
+- **Production URL:** `https://my-daily-path-ebon.vercel.app`
+- **Sync API (default):** `https://my-daily-path-ebon.vercel.app/api/sync` — см. [scripts/sync-restore.mjs](scripts/sync-restore.mjs)
 - **Server routes:** Node.js runtime
-- **Cloud sync on Vercel:** requires Upstash Redis env vars
+- **Cloud sync on Vercel:** requires Upstash Redis env vars + `SYNC_SECRET`
 - **Knowledge base:** bundled with deployment (markdown files)
 - **Windows desktop:** optional `.exe` launcher via scripts/
+
+#### Обязательный деплой после изменений
+
+Любые изменения в коде (src, API, config, knowledge-base) **должны быть задеплоены на Vercel production** в конце задачи. Локальные правки без деплоя считаются незавершённой работой.
+
+**Стандартный pipeline (агент / разработчик):**
+
+```bash
+npm run deploy
+```
+
+Скрипт выполняет: `vitest run` → `next lint` → `next build` → `vercel deploy --prod --yes`.
+
+**Альтернатива по шагам:**
+
+```bash
+npm run test
+npm run lint
+npm run build
+npx vercel deploy --prod --yes
+```
+
+**Предусловия:**
+
+| Требование | Как проверить |
+|------------|---------------|
+| Vercel CLI | `npx vercel --version` |
+| Авторизация | `npx vercel whoami` |
+| Проект привязан | каталог `.vercel/` или `vercel link` |
+| Env на Vercel | `npx vercel env pull .env.vercel.local --environment=production --yes` |
+
+**После успешного деплоя:**
+
+1. Сообщи пользователю URL деплоя (production alias).
+2. При изменениях API/sync — при необходимости проверь `GET /api/sync/config` на production.
+3. Обнови `PROJECT_CONTEXT.md`, если менялась архитектура или env.
+
+**Когда деплой можно пропустить (исключения):**
+
+- Только правки `PROJECT_CONTEXT.md` / README без изменения runtime-кода.
+- Пользователь явно просит не деплоить.
+- Деплой заблокирован (нет Vercel auth) — сообщи об этом и приложи команды для ручного запуска.
+
+**Автодеплой через Git:** если репозиторий подключён к Vercel, push в production branch тоже триггерит деплoy — но агент **всё равно** запускает `npm run deploy` (или `vercel deploy --prod`) для явной верификации, если есть доступ к CLI.
 
 ---
 
@@ -1044,6 +1094,8 @@ SyncGate boot / periodic
 4. **Новая функциональность** — добавляй сюда, не создавай отдельные doc-файлы.
 5. **Ссылки на код** — используй относительные пути от корня репозитория.
 6. **README vs PROJECT_CONTEXT** — README для quick start; PROJECT_CONTEXT — полная архитектурная правда (README может устареть, напр. Dexie).
+7. **Всегда деплой на Vercel** — после любых изменений runtime-кода завершай задачу командой `npm run deploy` (см. [§12.5](#125-deployment)). Не оставляй правки только локально.
+8. **Проверка деплоя** — если CLI недоступен, явно сообщи пользователю и передай команды для ручного деплоя; не считай задачу выполненной без попытки деплоя.
 
 ---
 

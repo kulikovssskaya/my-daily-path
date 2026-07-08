@@ -33,68 +33,26 @@ describe("scheduleStore", () => {
     expect(useScheduleStore.getState().events[0].status).toBe("planned");
   });
 
-  it("replaces Rize blocks and removes orphan AI titles", () => {
+  it("preserves imported events with rizeEntryId in store", () => {
     useScheduleStore.setState({
-      events: [
-        sampleEvent({
-          id: "orphan",
-          title: "Completed Python Debugging Lessons",
-          meta: undefined,
-        }),
-        sampleEvent({ id: "keep", start: "2026-01-01T10:00:00" }),
-      ],
+      events: [sampleEvent({ id: "imported" })],
       habits: [],
       past: [],
     });
-
-    const { removed, added } = useScheduleStore.getState().replaceRizeEvents(
-      [
-        {
-          rizeEntryId: "time_new",
-          title: "Real Rize block",
-          category: "learning",
-          start: "2026-07-07T14:00:00",
-          end: "2026-07-07T15:00:00",
-        },
-      ],
-      168
-    );
-
-    expect(removed).toBeGreaterThanOrEqual(1);
-    expect(added).toBe(1);
-    const titles = useScheduleStore.getState().events.map((e) => e.title);
-    expect(titles).toContain("Real Rize block");
-    expect(titles.some((t) => t.includes("Completed Python"))).toBe(false);
+    const ev = useScheduleStore.getState().events[0];
+    expect(ev?.meta?.rizeEntryId).toBe("time_1");
+    expect(ev?.title).toBe("Python study");
   });
 
-  it("keeps user-edited Rize imports during replace", () => {
+  it("marks user edits on imported events with rizeTouched", () => {
     useScheduleStore.setState({
-      events: [
-        sampleEvent({
-          id: "edited",
-          locked: true,
-          meta: { rizeEntryId: "time_1", rizeTouched: true },
-        }),
-      ],
+      events: [sampleEvent({ id: "imported", title: "Original" })],
       habits: [],
       past: [],
     });
-
-    const { skipped, added } = useScheduleStore.getState().replaceRizeEvents(
-      [
-        {
-          rizeEntryId: "time_2",
-          title: "New",
-          category: "work",
-          start: "2026-07-07T16:00:00",
-          end: "2026-07-07T17:00:00",
-        },
-      ],
-      168
-    );
-
-    expect(skipped).toBe(1);
-    expect(added).toBe(1);
-    expect(useScheduleStore.getState().events.find((e) => e.id === "edited")).toBeTruthy();
+    useScheduleStore.getState().updateEvent("imported", { title: "My edit" });
+    const ev = useScheduleStore.getState().events.find((e) => e.id === "imported");
+    expect(ev?.title).toBe("My edit");
+    expect(ev?.meta?.rizeTouched).toBe(true);
   });
 });

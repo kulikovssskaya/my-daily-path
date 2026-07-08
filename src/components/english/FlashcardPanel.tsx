@@ -85,8 +85,8 @@ export function FlashcardPanel() {
       <CardHeader>
         <CardTitle className="text-base">2A. Study list ({total} words)</CardTitle>
         <p className="text-sm text-muted-foreground">
-          Read through all words below. Add your own examples if you like, then continue to
-          practice.
+          Your {total} selected words — read through the full list. Add your own examples if
+          you like, then continue to matching.
         </p>
       </CardHeader>
       <CardContent className="space-y-3">
@@ -101,7 +101,7 @@ export function FlashcardPanel() {
 
         <div className="flex justify-end border-t pt-4">
           <Button onClick={() => finishStudyCard()}>
-            Continue to practice
+            Continue to matching
             <ChevronRight className="size-4" />
           </Button>
         </div>

@@ -21,6 +21,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint --dir src",
+    "deploy:prod": "npx vercel deploy --prod --yes",
+    "deploy": "npm run test && npm run lint && npm run build && npm run deploy:prod",
     "sync:restore": "node scripts/sync-restore.mjs",
     "sync:restore:full": "npx vercel env pull .env.vercel.local --environment=production --yes && node scripts/sync-restore.mjs",
     "sync:env": "node scripts/merge-sync-env.mjs"
