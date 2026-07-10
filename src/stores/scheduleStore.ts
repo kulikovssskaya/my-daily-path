@@ -56,18 +56,6 @@ const nextStatus: Record<EventStatus, EventStatus> = {
   skipped: "planned",
 };
 
-const seedHabits: Habit[] = [
-  {
-    id: uid("habit"),
-    title: "Massage",
-    weekdays: [2, 4],
-    time: "18:00",
-    duration: 60,
-    category: "health",
-    lastModifiedAt: touchTimestamp(),
-  },
-];
-
 const snap = (s: Snapshot): Snapshot => ({ events: s.events, habits: s.habits });
 const pushHistory = (s: ScheduleState) => [...s.past, snap(s)].slice(-30);
 
@@ -101,7 +89,7 @@ export const useScheduleStore = create<ScheduleState>()(
   persist(
     (set, get) => ({
       events: [],
-      habits: seedHabits,
+      habits: [],
       past: [],
 
       addEvent: (e) => {
@@ -319,15 +307,15 @@ export const useScheduleStore = create<ScheduleState>()(
           state?: Partial<SchedulePersistState>;
         };
         const state = p.state ?? p;
-        const currentSlice: SchedulePersistState = {
-          events: current.events,
-          habits: current.habits,
-        };
         const persistedSlice: SchedulePersistState = {
           events: state.events ?? [],
           habits: state.habits ?? [],
         };
-        const merged = mergeSchedulePersistStates(currentSlice, persistedSlice);
+        // Merge only from persisted data — never re-inject default store seeds on rehydrate.
+        const merged = mergeSchedulePersistStates(
+          { events: [], habits: [] },
+          persistedSlice
+        );
         return {
           ...current,
           events: merged.events,

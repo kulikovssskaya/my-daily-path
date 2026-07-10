@@ -1,11 +1,11 @@
 ---
 title: "Machine Learning — Основы"
 section: "ML"
-summary: "Полный базовый цикл ML: типы переменных, EDA, классификация и регрессия, деревья и случайный лес, нейросети, кросс-валидация и подготовка модели к продакшену."
+summary: "Практический цикл ML: EDA, подготовка данных, обучение моделей, кросс-валидация, тюнинг гиперпараметров и вывод в продакшен."
 tags: ["#ML", "#Analytics", "#Python", "#DataScience", "#DeepLearning", "#scikit-learn", "#PyTorch"]
 source: "https://peat-possum-c31.notion.site/ML-caca8dc0d8e94f08831120f6af512357 (ML, ML PART 2, ML part 3)"
 imported: "2026-07-03"
-updated: "2026-07-03"
+updated: "2026-07-10"
 status: "ready"
 ---
 
@@ -13,9 +13,9 @@ status: "ready"
 
 > `#ML` `#Analytics` `#Python` `#DataScience` `#DeepLearning`
 >
-> Раздел покрывает полный базовый цикл ML: от типов переменных и разведочного
-> анализа данных (EDA) до классификации, регрессии, ансамблей, нейросетей,
-> кросс-валидации и подготовки модели к продакшену.
+> Раздел покрывает практический цикл ML: от EDA и подготовки данных до обучения
+> моделей, кросс-валидации и продакшена. Теория алгоритмов — в
+> [ML — Алгоритмы и методы](ml-algoritmy-i-metody.md).
 
 ## Содержание
 
@@ -48,14 +48,13 @@ status: "ready"
 
 - **Целевая переменная (таргет)** — зависимая величина, которую модель предсказывает.
 - **Признаки (features)** — независимые переменные, описывающие объект.
-- **Типы переменных:** количественные (дискретные / непрерывные) и качественные (номинативные).
 - **EDA** — разведочный анализ данных: дубликаты, пропуски, типы, аномалии, корреляции.
 - **Три типа задач:** классификация, регрессия, кластеризация.
 - **Обучение с учителем / без учителя** (supervised / unsupervised).
-- **Метрики:** accuracy, матрица ошибок, MAE и др.
 - **Модели:** деревья решений, случайный лес, линейная/логистическая регрессия, нейросети.
-- **Переобучение (overfitting)** и способы его контроля: train/valid/test split, кросс-валидация, регуляризация.
+- **Переобучение (overfitting)** и способы контроля: train/valid/test split, кросс-валидация, регуляризация.
 - **Продакшн:** сериализация модели, peer review.
+- **Теория алгоритмов** (метрики, ансамбли, бустинг, kNN, кластеризация) — в отдельном разделе [ML — Алгоритмы и методы](ml-algoritmy-i-metody.md).
 
 ---
 
@@ -168,6 +167,10 @@ is_outlier.sum() / len(df_clean) * 100 # процент выбросов
 
 ### 2.5 Типы задач ML
 
+> 📘 **Теория алгоритмов** — парадигмы обучения, метрики, линейные модели, ансамбли,
+> бустинг, kNN, кластеризация, балансировка классов — в отдельном разделе
+> [ML — Алгоритмы и методы](ml-algoritmy-i-metody.md).
+
 Два самых распространённых вида обучения:
 
 - **Supervised (с учителем)** — есть целевая переменная.
@@ -181,7 +184,7 @@ is_outlier.sum() / len(df_clean) * 100 # процент выбросов
 | **Регрессия** | Непрерывное число | Прогнозирует величину | Цена квартиры |
 | **Кластеризация** | Нет (unsupervised) | Группирует по сходству | Сегментация клиентов |
 
-Классификация бывает **бинарной** (2 класса) и **многоклассовой** (>2 классов).
+Классификация бывает **бинарной** (2 класса) и **многоклассовой** (> 2 классов).
 
 ![Три типа задач ML: классификация, регрессия, кластеризация; supervised vs unsupervised](/kb-img/ml-task-types.svg)
 
@@ -197,7 +200,7 @@ x = df_prepared.drop(columns=["price_category"])
 y = df_prepared["price_category"]
 
 x_train, x_test, y_train, y_test = train_test_split(
-    x, y, test_size=0.3, random_state=42  # 30% в тест; random_state — воспроизводимость
+    x, y, test_size=0.3, random_state=42
 )
 ```
 
@@ -209,14 +212,13 @@ from sklearn.metrics import accuracy_score, confusion_matrix, classification_rep
 
 accuracy_score(y_test, y_pred)
 confusion_matrix(y_test, y_pred)
-print(classification_report(y_test, y_pred))  # precision, recall, f1 по классам
+print(classification_report(y_test, y_pred))
 ```
 
 ![Матрица ошибок 2x2: TP, FP, FN, TN и формулы precision, recall, F1](/kb-img/confusion-matrix.svg)
 
-> ⚠️ При **несбалансированных классах** (например, 500 vs 1000 объектов) accuracy
-> обманчива — модель может «угадывать» большинство. Смотрите precision/recall/F1,
-> ROC-AUC и балансируйте классы (`class_weight="balanced"`, oversampling/SMOTE).
+> ⚠️ При **несбалансированных классах** accuracy обманчива. Подробнее о precision,
+> recall, F1, ROC-AUC, PR-AUC и балансировке — в [ML — Алгоритмы и методы](ml-algoritmy-i-metody.md#23-метрики-качества).
 
 ### 2.7 Деревья решений и случайный лес
 
@@ -234,37 +236,30 @@ from sklearn.tree import DecisionTreeClassifier
 clf = DecisionTreeClassifier(random_state=42)
 clf.fit(x_train, y_train)
 
-pred_train = clf.predict(x_train)
-pred_test = clf.predict(x_test)
-
-# Важность признаков вместе с названиями, по убыванию
 f_imp = sorted(zip(x_train.columns, clf.feature_importances_),
                key=lambda pair: pair[1], reverse=True)
 ```
 
-**Ансамблевый метод** — несколько моделей обучаются на одной задаче и
-объединяются для лучшего результата. **Случайный лес (Random Forest)** — ансамбль
-деревьев.
+**Случайный лес (Random Forest)** — ансамбль деревьев на bootstrap-подвыборках.
 
 ```python
 from sklearn.ensemble import RandomForestClassifier
 
 rf = RandomForestClassifier(random_state=42)
 rf.fit(x_train, y_train)
-
-print(accuracy_score(y_train, rf.predict(x_train)))
 print(accuracy_score(y_test, rf.predict(x_test)))
-rf.get_params()  # параметры обучения
 ```
 
 ![Bagging (Random Forest) vs Boosting: параллельное усреднение vs последовательное исправление ошибок](/kb-img/bagging-boosting.svg)
 
+> Подробнее о критериях сплита, bagging, boosting, stacking и bias–variance —
+> [ML — Алгоритмы и методы](ml-algoritmy-i-metody.md#25-деревья-решений).
+
 ### 2.8 Тюнинг гиперпараметров
 
-Два самых частых метода подбора гиперпараметров:
-
 - **Grid Search** — полный перебор по сетке значений.
-- **Random Search** — случайная выборка комбинаций (быстрее на больших пространствах).
+- **Random Search** — случайная выборка комбинаций.
+- **Optuna** — байесовская оптимизация (2025–2026).
 
 ```python
 from sklearn.model_selection import GridSearchCV
@@ -276,15 +271,10 @@ grid.fit(x_train, y_train)
 print(grid.best_params_, grid.best_score_)
 ```
 
-> 💡 В 2025–2026 для тяжёлого тюнинга чаще используют **Optuna** (байесовская
-> оптимизация) вместо полного перебора — она находит хорошие гиперпараметры
-> за меньшее число итераций.
-
 ### 2.9 Линейная регрессия
 
-Алгоритм подбирает коэффициенты $k$ и $b$, чтобы приблизить целевую
-переменную: $y = kx + b$. **Ошибка** — расстояние между линией и истинными
-значениями таргета на тренировочной выборке.
+Краткий практический пример. Теория линейных моделей, log loss и регуляризация —
+[ML — Алгоритмы и методы](ml-algoritmy-i-metody.md#24-линейные-модели).
 
 ```python
 from sklearn.linear_model import LinearRegression
@@ -292,62 +282,37 @@ from sklearn.metrics import mean_absolute_error
 
 lr = LinearRegression()
 lr.fit(train[["age"]], train["charges"])
-
-pred = lr.predict(test[["age"]])
-mean_absolute_error(test["charges"], pred)  # MAE
+mean_absolute_error(test["charges"], lr.predict(test[["age"]]))
 ```
 
-**MAE (Mean Absolute Error)** — усреднённая абсолютная разница между предсказанным
-и истинным значением.
-
 ### 2.10 Логистическая регрессия
-
-Для каждого объекта определяет **вероятность** принадлежности к классу (значение
-от 0 до 1). Если вероятность близка к 1 — позитивный класс, если к 0 — негативный.
 
 ```python
 from sklearn.linear_model import LogisticRegression
 
-train_cols = ["age", "gender"]
 lr = LogisticRegression(max_iter=1000)
-lr.fit(x_train[train_cols], y_train)
-
-pred = lr.predict(x_test[train_cols])
-lr.predict_proba(x_test[train_cols])  # вероятности классов
-
-# Коэффициенты при признаках и свободный член
-for col, coef in zip(train_cols, lr.coef_[0]):
-    print(f"Коэффициент при {col} = {coef}")
-lr.intercept_
+lr.fit(x_train[["age", "gender"]], y_train)
+lr.predict_proba(x_test[["age", "gender"]])
 ```
-
-Настраивается гиперпараметрами регуляризации `penalty` и `C` — они не дают модели
-слишком сильно «подстраиваться» под тренировочные данные (борьба с переобучением).
 
 ### 2.11 Нейронные сети
 
-- **Функция активации** (например, **сигмоида**): вход нейрона умножается на веса,
-  произведения суммируются со свободным членом, к результату применяется активация.
-- **Синапсы** — связи (веса) между нейронами. При обучении подбираются «идеальные» веса.
-- **Многослойный персептрон (MLP)** — нейросеть прямого распространения минимум из
-  трёх слоёв: входной → скрытый → выходной.
-- Основные фреймворки: **PyTorch**, **Keras**, более низкоуровневый **TensorFlow**.
+- **Функция активации** (ReLU, sigmoid, tanh) — нелинейное преобразование после взвешенной суммы входов.
+- **Веса и смещения** — обучаемые параметры, подбираются градиентным спуском (backpropagation).
+- **MLP** — многослойный персептрон: входной → скрытые → выходной слой.
+- Фреймворки: **PyTorch**, **Keras / TensorFlow**.
 
 ![Полносвязная нейросеть: входной, скрытые и выходной слои с весами](/kb-img/neural-network.svg)
-
-Быстрый прототип на scikit-learn:
 
 ```python
 from sklearn.neural_network import MLPClassifier
 
 mlp = MLPClassifier(random_state=42, max_iter=500,
-                    hidden_layer_sizes=(100, 20), activation="tanh")
-mlp.fit(x_train, y_train)
-mlp.get_params()
-mlp.n_layers_
+                    hidden_layer_sizes=(100, 20), activation="relu")
+mlp.fit(X_train, y_train)
 ```
 
-Современный эквивалент на **PyTorch 2.x** (для реальных проектов):
+Современный эквивалент на **PyTorch 2.x**:
 
 ```python
 import torch
@@ -357,71 +322,92 @@ class MLP(nn.Module):
     def __init__(self, in_features: int, n_classes: int):
         super().__init__()
         self.net = nn.Sequential(
-            nn.Linear(in_features, 100), nn.Tanh(),
-            nn.Linear(100, 20), nn.Tanh(),
+            nn.Linear(in_features, 100), nn.ReLU(),
+            nn.Linear(100, 20), nn.ReLU(),
             nn.Linear(20, n_classes),
         )
 
     def forward(self, x):
         return self.net(x)
 
-model = MLP(in_features=x_train.shape[1], n_classes=len(y.unique()))
+model = MLP(in_features=X_train.shape[1], n_classes=y.nunique())
 optimizer = torch.optim.Adam(model.parameters(), lr=1e-3)
-criterion = nn.CrossEntropyLoss()  # softmax внутри, логиты на входе
+criterion = nn.CrossEntropyLoss()
 ```
 
 ### 2.12 Переобучение и кросс-валидация
 
-**Переобучение (overfitting)** — модель отлично работает на тренировке, но плохо
-на новых данных.
+**Переобучение (overfitting)** — модель запоминает тренировочные данные и плохо
+обобщает на новые.
 
 ![Компромисс bias-variance: оптимум между недообучением и переобучением](/kb-img/bias-variance.svg)
+
+#### Как бороться с переобучением
+
+| Способ | Описание |
+|--------|----------|
+| **Регуляризация** | L1/L2, dropout, `max_depth` в деревьях |
+| **Упрощение модели** | Меньше признаков, меньше параметров |
+| **Больше данных** | Сбор новых примеров |
+| **Аугментация** | Искусственное расширение выборки (повороты изображений, шум, SMOTE для таблиц) |
 
 **Train / Validation / Test split:**
 
 - **Train** — обучение модели.
-- **Valid** — разработчик видит её и оценивает качество/подбирает гиперпараметры.
-- **Test** — скрыта и от модели, и от разработчика; финальная честная оценка.
+- **Valid** — подбор гиперпараметров, ранняя остановка.
+- **Test** — финальная оценка **один раз** в конце проекта.
 
-**Кросс-валидация** — метод оценки, показывающий, насколько модель стабильна на
-разных наборах данных. Если модель переобучилась, метрика будет сильно скакать
-от фолда к фолду.
+#### Кросс-валидация
+
+Разбивает данные на несколько фолдов и даёт **более честную и стабильную** оценку,
+чем один train/test split. Особенно полезна при **малом объёме данных** и
+**нестабильных выборках**.
 
 ![K-fold cross-validation: каждый фолд по очереди служит валидацией](/kb-img/cross-validation.svg)
 
+| Вид CV | Когда использовать |
+|--------|-------------------|
+| **K-Fold** | Стандартный случай, $k = 5$ или $10$ |
+| **Stratified K-Fold** | Несбалансированные классы — сохраняет доли классов в каждом фолде |
+| **Leave-One-Out (LOO)** | Очень мало данных: $n$ фолдов по 1 объекту в тесте |
+| **TimeSeriesSplit** | Временные ряды — тест всегда «в будущем» относительно train |
+
+> Подробнее о видах CV (stratified, LOO, TimeSeriesSplit) —
+> [ML — Алгоритмы и методы](ml-algoritmy-i-metody.md#212-кросс-валидация).
+
 ```python
-from sklearn.model_selection import cross_validate, cross_val_score
+from sklearn.model_selection import (train_test_split, cross_val_score,
+                                     StratifiedKFold, TimeSeriesSplit)
 
-logreg = LogisticRegression(random_state=42, max_iter=1000)
+X_train, X_test, y_train, y_test = train_test_split(
+    X, y, test_size=0.3, random_state=42, stratify=y
+)
 
-# cv=5 → 5 фолдов, в каждый попадает 20% датасета
-cross_validate(logreg, x, y, cv=5, scoring="precision")
+cv = StratifiedKFold(n_splits=5, shuffle=True, random_state=42)
+scores = cross_val_score(pipe, X, y, cv=cv, scoring="f1_macro")
+print(f"CV: {scores.mean():.3f} ± {scores.std():.3f}")
 
-scores = cross_val_score(logreg, x, y, cv=5)
-print(scores.mean(), scores.std())  # маленький std → метрика стабильна
+tscv = TimeSeriesSplit(n_splits=5)
 ```
 
-> После кросс-валидации смотрят на **среднее** и **отклонение**. Небольшое
-> отклонение = метрика не скачет, модель не переобучается.
+> Смотрите на **среднее** и **стандартное отклонение** метрики по фолдам.
+> Высокий разброс — признак нестабильности или переобучения.
 
 ### 2.13 Сериализация модели и peer review
 
-**Сериализация** сохраняет обученную модель на диск для дальнейшего использования.
+**Сериализация** сохраняет обученную модель на диск для повторного использования без переобучения.
 
 ```python
-# Рекомендуемый способ для sklearn (2025–2026)
 import joblib
 
-joblib.dump(tree, "model.joblib")
+joblib.dump(pipe, "model.joblib")
 model = joblib.load("model.joblib")
 ```
 
-> 💡 **joblib** быстрее pickle на больших numpy-массивах. Для переносимости между
-> окружениями — **ONNX** или **skops**. ⚠️ Не загружайте pickle/joblib из
-> ненадёжных источников — это выполнение произвольного кода.
+> 💡 **joblib** быстрее pickle на больших numpy-массивах. Для переносимости —
+> **ONNX** или **skops**. ⚠️ Не загружайте pickle/joblib из ненадёжных источников.
 
-**Peer review** — процесс, в котором дата-сайентисты и разработчики проводят
-ревью кода и исследований друг для друга.
+**Peer review** — взаимная проверка кода, экспериментов и выводов внутри команды.
 
 ---
 
@@ -439,23 +425,13 @@ $$
 \mathrm{MAE} = \frac{1}{n}\sum_{i=1}^{n}\left|\, y_i - \hat{y}_i \,\right|
 $$
 
-**Логистическая регрессия** — сигмоида отображает линейную комбинацию в вероятность:
+**Логистическая регрессия** — сигмоида:
 
 $$
 \sigma(z) = \frac{1}{1 + e^{-z}}, \qquad z = \mathbf{w}^\top \mathbf{x} + b
 $$
 
-**Правило выбросов по IQR** ($\mathrm{IQR} = Q_3 - Q_1$):
-
-$$
-x \text{ — выброс, если } x < Q_1 - 1.5\,\mathrm{IQR} \;\; \text{или}\;\; x > Q_3 + 1.5\,\mathrm{IQR}
-$$
-
-**Правило 3-сигм** (нормальное распределение):
-
-$$
-x \text{ — выброс, если } |x - \mu| > 3\sigma
-$$
+> Формулы метрик, Gini, энтропии, bias–variance — в [ML — Алгоритмы и методы](ml-algoritmy-i-metody.md#математическая-основа).
 
 **Accuracy** через матрицу ошибок:
 
@@ -558,6 +534,7 @@ pipe.set_params(**{f"clf__{k}": v for k, v in study.best_params.items()})
 
 ## Связи с другими темами
 
+- [ML — Алгоритмы и методы](ml-algoritmy-i-metody.md) — теория: метрики, ансамбли, бустинг, kNN, кластеризация. `#ML`
 - [Pandas](../pandas/) — подготовка и очистка данных для всех примеров выше. `#Pandas`
 - [Matplotlib](../matplotlib/) — визуализация распределений, матрицы ошибок, важности признаков. `#Matplotlib`
 - [Алгоритмы](../algorithms/) — структуры данных за деревьями решений. `#Algorithms`
@@ -585,7 +562,9 @@ pipe.set_params(**{f"clf__{k}": v for k, v in study.best_params.items()})
   MAE как понятная бизнесу метрика ошибки в рублях.
 - **Отток клиентов (churn):** классификация с `class_weight="balanced"`; feature
   importance подсказывает, какие факторы удерживают клиента.
-- **Сегментация клиентов:** кластеризация (unsupervised) для маркетинговых кампаний.
+- **Сегментация клиентов:** K-Means / DBSCAN для маркетинговых кампаний.
+- **Поиск мошенничества:** kNN или изоляционный лес по «отдалённым» транзакциям.
+- **Табличный бенчмарк:** LightGBM / CatBoost vs логистическая регрессия как baseline.
 
 ---
 
@@ -595,3 +574,4 @@ pipe.set_params(**{f"clf__{k}": v for k, v in study.best_params.items()})
 |------|-----------|----------|
 | 2026-07-03 | Первичный импорт и переструктурирование разделов ML, ML PART 2, ML part 3 | [Notion: ML](https://peat-possum-c31.notion.site/ML-caca8dc0d8e94f08831120f6af512357) |
 | 2026-07-03 | Актуализация: Pipeline+ColumnTransformer, Optuna, joblib, ml-pipeline.svg | Редакция KB |
+| 2026-07-10 | Теория алгоритмов вынесена в ml-algoritmy-i-metody.md | Редакция KB |

@@ -32,7 +32,8 @@
 | 3 | **Pandas** | [`pandas/pandas-osnovy.md`](pandas/pandas-osnovy.md) | ✅ **Готово** | [ссылка](https://peat-possum-c31.notion.site/Pandas-0ddba042bbd8453aa941c2ff4ba7f2eb) |
 | 4 | **Matplotlib** | [`matplotlib/matplotlib-osnovy.md`](matplotlib/matplotlib-osnovy.md) | ✅ **Готово** | [ссылка](https://peat-possum-c31.notion.site/Matplotlib-2198b85aafc080f7899dcc6a5125203a) |
 | 5 | **Алгоритмы** | [`algorithms/algoritmy.md`](algorithms/algoritmy.md) | ✅ **Готово** | [ссылка](https://peat-possum-c31.notion.site/2578b85aafc08054a739c0393d413331) |
-| 6 | **ML** | [`ml/ml-osnovy.md`](ml/ml-osnovy.md) | ✅ **Готово** | [ссылка](https://peat-possum-c31.notion.site/ML-caca8dc0d8e94f08831120f6af512357) |
+| 6 | **ML — Основы** | [`ml/ml-osnovy.md`](ml/ml-osnovy.md) | ✅ **Готово** | [ссылка](https://peat-possum-c31.notion.site/ML-caca8dc0d8e94f08831120f6af512357) |
+| 6b | **ML — Алгоритмы и методы** | [`ml/ml-algoritmy-i-metody.md`](ml/ml-algoritmy-i-metody.md) | ✅ **Готово** | Редакция KB (конспект) |
 | 7 | **Modeling** | [`modeling/modeling.md`](modeling/modeling.md) | ✅ **Готово** | [ссылка](https://peat-possum-c31.notion.site/Modeling-2318b85aafc08070b0d4f17c57b716d5) |
 | 8 | **БД** | [`databases/bazy-dannyh.md`](databases/bazy-dannyh.md) | ✅ **Готово** | [ссылка](https://peat-possum-c31.notion.site/7ddb789631fc4ad1aaa151542278c53e) |
 | 9 | **API** | [`api/api.md`](api/api.md) | ✅ **Готово** | [ссылка](https://peat-possum-c31.notion.site/API-e8ff36bbf9cc4035b2eb7cfd87c0ca59) |
@@ -65,4 +66,4 @@
 - 🔄 В работе
 - ⏳ Ожидает импорта
 
-_Последнее обновление: 2026-07-03_
+_Последнее обновление: 2026-07-10_
