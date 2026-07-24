@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { guardAiRequest } from "@/lib/ai/aiAuthServer";
 import { runStructured } from "@/lib/ai/run";
 import { ENGLISH_VOCAB_SYSTEM, buildEnglishVocabUserMessage } from "@/lib/ai/prompts";
 import { englishVocabDropSchema, type EnglishVocabDrop } from "@/lib/ai/schemas";
@@ -38,6 +39,9 @@ function buildDrop(
 }
 
 export async function POST(req: Request) {
+  const denied = guardAiRequest(req);
+  if (denied) return denied;
+
   const body = await req.json().catch(() => ({}));
   const poolSize = Math.min(30, Math.max(20, Number(body?.poolSize) || 20));
   const level = typeof body?.level === "string" ? body.level : "B1-B2";

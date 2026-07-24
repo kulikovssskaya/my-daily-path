@@ -7,6 +7,10 @@ import { NaturalInput } from "./NaturalInput";
 import { Agenda } from "./Agenda";
 import { HabitsManager } from "./HabitsManager";
 import { DataProtectionBanner } from "./DataProtectionBanner";
+import {
+  EveningWrapCard,
+  EveningWrapNudge,
+} from "@/components/progress/EveningWrapCard";
 
 export function ScheduleWorkspace() {
   const undo = useScheduleStore((s) => s.undo);
@@ -21,8 +25,12 @@ export function ScheduleWorkspace() {
         </Button>
       </div>
       <DataProtectionBanner />
+      <EveningWrapNudge />
       <NaturalInput />
       <Agenda />
+      <div id="evening-wrap">
+        <EveningWrapCard compact />
+      </div>
       <HabitsManager />
     </div>
   );

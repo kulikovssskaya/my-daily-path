@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { guardAiRequest } from "@/lib/ai/aiAuthServer";
 import { runStructured } from "@/lib/ai/run";
 import {
   FRIDGE_COMMAND_SYSTEM,
@@ -60,6 +61,9 @@ function fallback(instruction: string, fridge: string[]): FridgeCommand {
 }
 
 export async function POST(req: Request) {
+  const denied = guardAiRequest(req);
+  if (denied) return denied;
+
   const body = await req.json().catch(() => ({}));
   const instruction: string = typeof body?.instruction === "string" ? body.instruction : "";
   const fridge: string[] = Array.isArray(body?.fridge) ? body.fridge : [];

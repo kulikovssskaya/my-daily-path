@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
-import type { LearningTrack, DailyReport, WeeklyReport, DailyLog, TrackType } from "@/types";
+import type { LearningTrack, DailyReport, WeeklyReport, DailyLog, DailyLogKind, TrackType } from "@/types";
 import { uid } from "@/lib/utils";
 import {
   applyAutoLock,
@@ -17,6 +17,13 @@ function todayKey() {
 
 const cloneLogs = (logs: DailyLog[]): DailyLog[] => logs.map((l) => ({ ...l }));
 
+export type AddLogOpts = {
+  calendarEventId?: string;
+  timerSessionId?: string;
+  kind?: DailyLogKind;
+  linkedInPostId?: string;
+};
+
 interface ProgressState {
   tracks: LearningTrack[];
   reports: DailyReport[];
@@ -31,7 +38,7 @@ interface ProgressState {
   addReport: (r: Omit<DailyReport, "id">) => void;
   addWeeklyReport: (r: Omit<WeeklyReport, "id">) => void;
 
-  addLog: (text: string, calendarEventId?: string, timerSessionId?: string) => string;
+  addLog: (text: string, opts?: AddLogOpts) => string;
   updateLog: (id: string, text: string) => void;
   removeLog: (id: string) => void;
   unlockLog: (id: string) => void;
@@ -82,7 +89,7 @@ export const useProgressStore = create<ProgressState>()(
           weeklyReports: [{ ...r, id: uid("wrep") }, ...s.weeklyReports].slice(0, 12),
         })),
 
-      addLog: (text, calendarEventId, timerSessionId) => {
+      addLog: (text, opts) => {
         const id = uid("log");
         const now = touchTimestamp();
         set((s) => ({
@@ -93,8 +100,10 @@ export const useProgressStore = create<ProgressState>()(
               date: todayKey(),
               text: text.trim(),
               createdAt: now,
-              calendarEventId,
-              timerSessionId,
+              calendarEventId: opts?.calendarEventId,
+              timerSessionId: opts?.timerSessionId,
+              kind: opts?.kind,
+              linkedInPostId: opts?.linkedInPostId,
               lastModifiedAt: now,
               locked: false,
             },

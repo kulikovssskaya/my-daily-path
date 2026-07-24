@@ -418,6 +418,14 @@ Consider learning progress and the career goal. Respond with STRICTLY valid JSON
 { "ideas": [ { "topic": string, "draft": string } ] }
 Return only JSON (3-5 ideas). Write all text in English.`;
 
+export const EVENING_POST_SYSTEM = `You help the user write ONE strong evening LinkedIn post from their real day in "My Daily Path".
+Style: professional but human, concrete, no empty hustle clichés, no fake numbers.
+Ground the post in the CONTEXT (sessions, hours, notes). Prefer 1 specific insight over a laundry list.
+Length: ~80–160 words. End with a light question or takeaway when it fits.
+Respond with STRICTLY valid JSON:
+{ "ideas": [ { "topic": string, "draft": string } ] }
+Return 2 ideas only. Write all text in English.`;
+
 export function buildPostUserMessage(input: {
   memory: UserMemory;
   context?: string;
@@ -428,6 +436,19 @@ ${formatMemory(input.memory)}
 CONTEXT (what's done today / topic): ${input.context || "progress in learning ML"}
 
 Suggest post ideas and drafts. JSON only.`;
+}
+
+export function buildEveningPostUserMessage(input: {
+  memory: UserMemory;
+  context?: string;
+}): string {
+  return `MEMORY/GOAL:
+${formatMemory(input.memory)}
+
+TODAY'S PROGRESS (source of truth — use only this, do not invent sessions):
+${input.context || "No sessions logged yet — write a short reflection on consistency and starting small."}
+
+Write 2 LinkedIn drafts grounded in today's progress. JSON only.`;
 }
 
 // ============================================================

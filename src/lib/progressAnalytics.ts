@@ -104,12 +104,14 @@ export function hoursByTrack(events: ScheduleEvent[]): TrackMetric[] {
   return [...map.values()].sort((a, b) => b.hours - a.hours);
 }
 
-function inferTrackFromTitle(title: string): string {
+export function inferTrackFromTitle(title: string): string {
   const t = title.toLowerCase();
-  if (/\benglish\b|vocab|flashcard/.test(t)) return "English";
-  if (/\bpython\b|pandas|numpy|debug/.test(t)) return "Python";
-  if (/\bml\b|machine learning|neural|sklearn|model/.test(t)) return "ML";
-  if (/\bstat|math|probability/.test(t)) return "Math & Stats";
+  if (/папа|с папой|\bdad\b|father/.test(t)) return "With dad";
+  if (/подготов/.test(t) && /занят|урок|lesson/.test(t)) return "With dad";
+  if (/\benglish\b|англ|vocab|flashcard|слов/.test(t)) return "English";
+  if (/stepik|степик|\bpython\b|pandas|numpy|debug|программир/.test(t)) return "Python";
+  if (/\bml\b|machine learning|neural|sklearn|model|нейросет/.test(t)) return "ML";
+  if (/stat|math|математик|probability/.test(t)) return "Math & Stats";
   return "Other";
 }
 

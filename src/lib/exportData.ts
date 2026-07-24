@@ -7,6 +7,7 @@ import type {
   UserMemory,
   JobApplication,
 } from "@/types";
+import { computeTrackStats } from "@/lib/progress";
 
 export const EXPORT_VERSION = "1.0";
 
@@ -166,8 +167,9 @@ export function buildJournalMarkdown(data: MyDailyPathExport): string {
   if (data.progress.tracks.length) {
     lines.push("## Learning tracks", "");
     for (const t of data.progress.tracks) {
+      const stats = computeTrackStats(data.schedule.events, t);
       lines.push(
-        `- ${t.name} (${t.type}): ${t.loggedHours.toFixed(1)}h logged${t.targetHours ? ` / ${t.targetHours}h target` : ""}, streak ${t.streak}d`
+        `- ${t.name} (${t.type}): ${stats.loggedHours.toFixed(1)}h logged${t.targetHours ? ` / ${t.targetHours}h target` : ""}, streak ${stats.streak}d`
       );
     }
     lines.push("");

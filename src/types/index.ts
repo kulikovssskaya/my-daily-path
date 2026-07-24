@@ -121,6 +121,8 @@ export interface WeeklyReport {
 }
 
 /** A free-form note about what the user actually did on a given day. */
+export type DailyLogKind = "note" | "evening-summary";
+
 export interface DailyLog {
   id: string;
   date: ISODate; // YYYY-MM-DD
@@ -130,6 +132,10 @@ export interface DailyLog {
   calendarEventId?: string;
   /** Linked work-timer session, if logged via timer. */
   timerSessionId?: string;
+  /** How the note was created (evening LinkedIn wrap, free note, …). */
+  kind?: DailyLogKind;
+  /** Linked career LinkedIn draft, if saved from evening wrap. */
+  linkedInPostId?: string;
   lastModifiedAt?: ISODate;
   locked?: boolean;
   lockedAt?: ISODate;
@@ -203,6 +209,11 @@ export interface LinkedInPostIdea {
   scheduledFor?: ISODate;
   posted: boolean;
   createdAt: ISODate;
+  /** Calendar day this post summarizes (YYYY-MM-DD). */
+  sourceDate?: ISODate;
+  /** Linked daily log when saved from evening wrap. */
+  dailyLogId?: string;
+  eveningWrap?: boolean;
 }
 
 // ---------- Daily English (English Boost) ----------

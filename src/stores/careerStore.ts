@@ -53,7 +53,15 @@ interface CareerState {
   setApplicationStatus: (id: string, status: ApplicationStatus) => void;
   removeApplication: (id: string) => void;
 
-  addPosts: (ideas: { topic: string; draft: string }[]) => void;
+  addPosts: (
+    ideas: {
+      topic: string;
+      draft: string;
+      sourceDate?: string;
+      eveningWrap?: boolean;
+      dailyLogId?: string;
+    }[]
+  ) => string[];
   updatePost: (id: string, patch: Partial<LinkedInPostIdea>) => void;
   removePost: (id: string) => void;
 
@@ -158,19 +166,29 @@ export const useCareerStore = create<CareerState>()(
       removeApplication: (id) =>
         set((s) => ({ applications: s.applications.filter((a) => a.id !== id) })),
 
-      addPosts: (ideas) =>
+      addPosts: (ideas) => {
+        const ids: string[] = [];
         set((s) => ({
           posts: [
-            ...ideas.map((i) => ({
-              id: uid("post"),
-              topic: i.topic,
-              draft: i.draft,
-              posted: false,
-              createdAt: new Date().toISOString(),
-            })),
+            ...ideas.map((i) => {
+              const id = uid("post");
+              ids.push(id);
+              return {
+                id,
+                topic: i.topic,
+                draft: i.draft,
+                posted: false,
+                createdAt: new Date().toISOString(),
+                sourceDate: i.sourceDate,
+                eveningWrap: i.eveningWrap,
+                dailyLogId: i.dailyLogId,
+              };
+            }),
             ...s.posts,
           ].slice(0, 40),
-        })),
+        }));
+        return ids;
+      },
       updatePost: (id, patch) =>
         set((s) => ({
           posts: s.posts.map((p) => (p.id === id ? { ...p, ...patch } : p)),

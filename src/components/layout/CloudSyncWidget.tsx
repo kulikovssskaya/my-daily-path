@@ -138,6 +138,11 @@ export function CloudSyncWidget({ collapsed }: { collapsed?: boolean }) {
           <div className="flex items-center gap-1 text-[11px] text-muted-foreground">
             <Cloud className={cn("size-3", enabled && "text-green-600")} />
             Sync
+            {enabled && (
+              <span className="text-[10px] opacity-70">
+                · {cloud ? "облако" : "локально"}
+              </span>
+            )}
           </div>
           {enabled && (
             <button

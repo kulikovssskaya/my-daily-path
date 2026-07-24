@@ -1,10 +1,12 @@
 "use client";
 
 import { useMounted } from "@/hooks/useMounted";
-import { GoalCard } from "@/components/progress/GoalCard";
-import { TodayNoteCard } from "@/components/progress/TodayNoteCard";
-import { ProgressOverview, ProgressCharts } from "@/components/progress/ProgressCharts";
-import { ProgressAIInsights } from "@/components/progress/ProgressAIInsights";
+import {
+  ProgressOverview,
+  ProgressByActivity,
+  ProgressCharts,
+} from "@/components/progress/ProgressCharts";
+import { EveningWrapCard } from "@/components/progress/EveningWrapCard";
 import { ExportDataCard } from "@/components/progress/ExportDataCard";
 
 export function ProgressWorkspace() {
@@ -24,15 +26,17 @@ export function ProgressWorkspace() {
       <div>
         <h1 className="text-lg font-semibold">Progress</h1>
         <p className="text-sm text-muted-foreground">
-          Tracking and analysis from your Calendar — sessions, notes, and daily reflections.
+          Hours from completed Learning events on Calendar (end − start). Mark sessions done
+          for them to count.
         </p>
       </div>
 
-      <GoalCard />
       <ProgressOverview />
+      <div id="evening-wrap">
+        <EveningWrapCard />
+      </div>
+      <ProgressByActivity />
       <ProgressCharts />
-      <TodayNoteCard />
-      <ProgressAIInsights />
       <ExportDataCard />
     </div>
   );

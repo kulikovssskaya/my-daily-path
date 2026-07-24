@@ -48,10 +48,25 @@ describe("progressAnalytics", () => {
         title: "English vocab",
         meta: {},
       }),
+      ev({
+        start: "2026-07-03T09:00:00",
+        end: "2026-07-03T10:30:00",
+        title: "Занятие с папой",
+        meta: {},
+      }),
+      ev({
+        start: "2026-07-04T09:00:00",
+        end: "2026-07-04T10:00:00",
+        title: "Stepik Python",
+        meta: {},
+      }),
     ];
-    expect(hoursByCategory(events)[0].hours).toBe(2);
+    expect(hoursByCategory(events)[0].hours).toBe(4.5);
     expect(hoursByTrack(events).map((t) => t.name)).toContain("Python");
     expect(hoursByTrack(events).map((t) => t.name)).toContain("English");
+    expect(hoursByTrack(events).map((t) => t.name)).toContain("With dad");
+    const python = hoursByTrack(events).find((t) => t.name === "Python");
+    expect(python?.hours).toBe(2);
   });
 
   it("computes week bounds Mon–Sun", () => {

@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { guardAiRequest } from "@/lib/ai/aiAuthServer";
 import { runStructured } from "@/lib/ai/run";
 import { APPLICATION_SYSTEM, buildApplicationUserMessage } from "@/lib/ai/prompts";
 import { applicationResponseSchema } from "@/lib/ai/schemas";
@@ -7,6 +8,9 @@ import { normalizeMemory } from "@/lib/memory";
 export const runtime = "nodejs";
 
 export async function POST(req: Request) {
+  const denied = guardAiRequest(req);
+  if (denied) return denied;
+
   const body = await req.json().catch(() => ({}));
   const cvMarkdown: string = typeof body?.cvMarkdown === "string" ? body.cvMarkdown : "";
   const job = {

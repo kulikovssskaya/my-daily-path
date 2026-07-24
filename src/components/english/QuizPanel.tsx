@@ -92,16 +92,20 @@ export function QuizPanel() {
 
   const selectedWordIdsKey = session?.selectedWordIds.join(",") ?? "";
 
+  const selectedIds = React.useMemo(
+    () => (selectedWordIdsKey ? selectedWordIdsKey.split(",") : []),
+    [selectedWordIdsKey]
+  );
+
   const terms = React.useMemo(() => {
-    const ids = session?.selectedWordIds ?? [];
-    return ids
+    return selectedIds
       .map((id) => vocabulary.find((w) => w.id === id))
       .filter((w): w is EnglishVocabWord => !!w);
-  }, [selectedWordIdsKey, vocabulary]);
+  }, [selectedIds, vocabulary]);
 
   const shuffledRuIds = React.useMemo(
-    () => [...(session?.selectedWordIds ?? [])].sort(() => Math.random() - 0.5),
-    [selectedWordIdsKey]
+    () => [...selectedIds].sort(() => Math.random() - 0.5),
+    [selectedIds]
   );
 
   const shuffledRu = React.useMemo(

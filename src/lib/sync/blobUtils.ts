@@ -45,7 +45,11 @@ export function isMeaningfulBlob(key: SyncStorageKey, raw: string): boolean {
     case "mdp-cooking":
       return arrayLen(state.fridge) > 0 || arrayLen(state.recipes) > 0;
     case "mdp-career":
-      return arrayLen(state.applications) > 0 || Boolean(state.cvMarkdown);
+      return (
+        arrayLen(state.applications) > 0 ||
+        arrayLen(state.cvs) > 0 ||
+        arrayLen(state.postings) > 0
+      );
     case "mdp-memory":
       return (
         arrayLen(state.goals) > 0 ||

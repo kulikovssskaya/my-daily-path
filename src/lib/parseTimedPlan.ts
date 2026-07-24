@@ -16,8 +16,17 @@ export function isoAt(date: Date, minutes: number): string {
 const KEYWORDS: { re: RegExp; category: EventCategory; track?: string }[] = [
   { re: /break|перерыв|пауза/i, category: "rest" },
   { re: /breakfast|lunch|dinner|обед|ужин|завтрак|meal|еда|поесть/i, category: "meal" },
+  {
+    re: /папа|с папой|\bdad\b|father|подготовк.*занят|занятие.*пап/i,
+    category: "learning",
+    track: "With dad",
+  },
   { re: /engl|англ|язык|language|vocab|words|слов/i, category: "learning", track: "English" },
-  { re: /pandas|numpy|python|code|coding|program|программир|код/i, category: "learning", track: "Python" },
+  {
+    re: /stepik|степик|pandas|numpy|python|code|coding|program|программир|код/i,
+    category: "learning",
+    track: "Python",
+  },
   {
     re: /\bml\b|machine|neural|нейросет|нейронн|matplotlib|seaborn|eda|catboost|lightgbm|визуализац|анализ/i,
     category: "learning",

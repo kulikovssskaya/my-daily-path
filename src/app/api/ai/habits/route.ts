@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { guardAiRequest } from "@/lib/ai/aiAuthServer";
 import { runStructured } from "@/lib/ai/run";
 import { HABITS_SYSTEM, buildHabitsUserMessage } from "@/lib/ai/prompts";
 import { habitsResponseSchema, type HabitsResponse } from "@/lib/ai/schemas";
@@ -6,6 +7,9 @@ import { habitsResponseSchema, type HabitsResponse } from "@/lib/ai/schemas";
 export const runtime = "nodejs";
 
 export async function POST(req: Request) {
+  const denied = guardAiRequest(req);
+  if (denied) return denied;
+
   const body = await req.json().catch(() => ({}));
   const instruction: string = typeof body?.instruction === "string" ? body.instruction : "";
   const existingHabits = Array.isArray(body?.existingHabits) ? body.existingHabits : [];

@@ -6,6 +6,7 @@ import { useMemoryStore } from "@/stores/memoryStore";
 import type { PlanResponse } from "@/lib/ai/schemas";
 import { isUndoInstruction } from "@/lib/parseTimedPlan";
 import { previewPlanApply } from "@/lib/planSafety";
+import { aiHeaders } from "@/lib/aiClient";
 
 function localNowIso(): string {
   const d = new Date();
@@ -101,7 +102,7 @@ export function usePlanner() {
 
         const res = await fetch("/api/ai/plan", {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: aiHeaders(),
           body: JSON.stringify({
             instruction: text,
             now: nowIso,

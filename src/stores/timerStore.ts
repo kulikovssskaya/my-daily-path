@@ -84,7 +84,10 @@ export const useTimerStore = create<TimerState>()(
           });
           logId = useProgressStore
             .getState()
-            .addLog(`Timer: ${active.title}`, calendarEventId, active.id);
+            .addLog(`Timer: ${active.title}`, {
+              calendarEventId,
+              timerSessionId: active.id,
+            });
         }
 
         const session: TimerSession = {

@@ -70,9 +70,9 @@ export function ExportDataCard() {
           <Download className="size-4" />
         </span>
         <div className="min-w-0 flex-1">
-          <CardTitle className="text-sm">Export for AI analysis</CardTitle>
+          <CardTitle className="text-sm">Export data</CardTitle>
           <p className="text-xs text-muted-foreground">
-            Download your diary, completed tasks, schedule, habits, and memory as one file.
+            Download completed calendar sessions, habits, and notes as one file.
           </p>
         </div>
       </CardHeader>

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import { guardAiRequest } from "@/lib/ai/aiAuthServer";
 import {
   chatComplete,
   AIConfigError,
@@ -67,6 +68,9 @@ async function finalizePlan(
 }
 
 export async function POST(req: Request) {
+  const denied = guardAiRequest(req);
+  if (denied) return denied;
+
   let body: unknown;
   try {
     body = await req.json();
