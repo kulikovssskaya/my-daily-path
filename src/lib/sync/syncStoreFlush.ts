@@ -43,7 +43,7 @@ export function flushPersistedStoresToLocalStorage() {
     history: english.history,
     stats: english.stats,
   });
-  writePersistBlob("mdp-english", finalized, 4);
+  writePersistBlob("mdp-english", finalized, 7);
 
   const scheduleRaw = localStorage.getItem("mdp-schedule");
   if (scheduleRaw) {
@@ -65,6 +65,8 @@ export async function rehydrateAllStoresAsync(): Promise<void> {
     useCareerStore.persist.rehydrate(),
     useEnglishStore.persist.rehydrate(),
   ]);
+
+  useEnglishStore.getState().ensureHistoryBackfill();
 }
 
 export function getLocalSyncDiagnostics(): {

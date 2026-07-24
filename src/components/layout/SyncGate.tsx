@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { isSyncEnabled, getStoredSyncKey, setLocalSyncMeta } from "@/lib/sync/syncAuthClient";
-import { pushToServer, runCloudSync } from "@/lib/sync/syncRunner";
+import { pushToServer, syncOnAppLoad, syncOnVisible } from "@/lib/sync/syncRunner";
 import { useScheduleStore } from "@/stores/scheduleStore";
 import { useProgressStore } from "@/stores/progressStore";
 import { useMemoryStore } from "@/stores/memoryStore";
@@ -18,8 +18,10 @@ export function SyncGate({ children }: { children: React.ReactNode }) {
   const pushTimer = React.useRef<ReturnType<typeof setTimeout> | null>(null);
   const protectionRan = React.useRef(false);
   const syncKeyRef = React.useRef<string | null>(null);
+  const bootSyncDoneRef = React.useRef(false);
 
   const flushPush = React.useCallback(() => {
+    if (!bootSyncDoneRef.current) return;
     if (!isSyncEnabled()) return;
     const key = syncKeyRef.current ?? getStoredSyncKey();
     if (!key) return;
@@ -29,10 +31,11 @@ export function SyncGate({ children }: { children: React.ReactNode }) {
   }, []);
 
   const pullSync = React.useCallback(async () => {
+    if (!bootSyncDoneRef.current) return;
     if (!isSyncEnabled()) return;
     const key = syncKeyRef.current ?? getStoredSyncKey();
     if (!key) return;
-    await runCloudSync(key);
+    await syncOnVisible(key);
   }, []);
 
   React.useEffect(() => {
@@ -47,9 +50,14 @@ export function SyncGate({ children }: { children: React.ReactNode }) {
     syncKeyRef.current = getStoredSyncKey();
 
     const boot = async () => {
-      if (isSyncEnabled() && syncKeyRef.current) {
-        await runCloudSync(syncKeyRef.current);
+      if (pushTimer.current) {
+        clearTimeout(pushTimer.current);
+        pushTimer.current = null;
       }
+      if (isSyncEnabled() && syncKeyRef.current) {
+        await syncOnAppLoad(syncKeyRef.current);
+      }
+      bootSyncDoneRef.current = true;
       if (!cancelled) setReady(true);
     };
 

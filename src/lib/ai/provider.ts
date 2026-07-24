@@ -64,6 +64,11 @@ export function getProviderInfo() {
 
 export class AIConfigError extends Error {}
 
+/** Provider returned HTTP 429 (or equivalent rate-limit body). */
+export class AIRateLimitError extends Error {
+  status = 429;
+}
+
 interface ChatOptions {
   temperature?: number;
   /** Ask the provider to return a strict JSON object when supported. */
@@ -94,6 +99,9 @@ async function openAICompatible(
   });
 
   if (!res.ok) {
+    if (res.status === 429) {
+      throw new AIRateLimitError(`${cfg.id} rate limit (429). Try again in a minute.`);
+    }
     throw new Error(`${cfg.id} API error (${res.status})`);
   }
   const data = await res.json();
@@ -130,6 +138,9 @@ async function anthropic(
   });
 
   if (!res.ok) {
+    if (res.status === 429) {
+      throw new AIRateLimitError("anthropic rate limit (429). Try again in a minute.");
+    }
     throw new Error(`anthropic API error (${res.status})`);
   }
   const data = await res.json();

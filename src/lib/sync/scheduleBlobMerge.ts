@@ -77,8 +77,7 @@ function eventCanonicalKey(ev: ScheduleEvent): string {
 }
 
 function habitCanonicalKey(h: Habit): string {
-  const weekdays = [...h.weekdays].sort((a, b) => a - b).join(",");
-  return `${h.title.trim().toLowerCase()}|${h.time}|${weekdays}`;
+  return `id:${h.id}`;
 }
 
 function pickBetterEvent(a: ScheduleEvent, b: ScheduleEvent): ScheduleEvent {

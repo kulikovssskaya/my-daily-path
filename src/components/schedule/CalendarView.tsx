@@ -13,13 +13,85 @@ import { eventEchoesHabitOnDay } from "@/lib/habitDedupe";
 import { toNaiveISO } from "@/lib/utils";
 import type { EventCategory, EventStatus, ScheduleEvent } from "@/types";
 import { Button } from "@/components/ui/button";
-import { Trash2, X, Lock } from "lucide-react";
+import { Trash2, X, Lock, LockOpen } from "lucide-react";
+import { HabitEditor } from "@/components/schedule/HabitEditor";
 
 const STATUS_LABEL: Record<EventStatus, string> = {
   planned: "Planned",
   done: "Done",
   skipped: "Skipped",
 };
+
+function parseHabitId(fcEventId: string): string | null {
+  if (!fcEventId.startsWith("habit_")) return null;
+  const rest = fcEventId.slice("habit_".length);
+  return rest.split("_")[0] ?? null;
+}
+
+function QuickAddEventModal({
+  start,
+  end,
+  onClose,
+}: {
+  start: Date;
+  end: Date;
+  onClose: () => void;
+}) {
+  const addEvent = useScheduleStore((s) => s.addEvent);
+  const [title, setTitle] = React.useState("");
+
+  const save = () => {
+    const t = title.trim();
+    if (!t) return;
+    addEvent({
+      title: t,
+      category: "learning",
+      start: toNaiveISO(start),
+      end: toNaiveISO(end),
+      status: "done",
+      priority: 2,
+    });
+    onClose();
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <div className="absolute inset-0 bg-black/50" onClick={onClose} />
+      <div className="relative z-10 w-full max-w-md space-y-4 rounded-xl border bg-card p-5 shadow-xl">
+        <div className="flex items-center justify-between">
+          <h3 className="font-semibold">Add session</h3>
+          <Button variant="ghost" size="icon" className="size-8" onClick={onClose}>
+            <X className="size-4" />
+          </Button>
+        </div>
+        <p className="text-xs text-muted-foreground">
+          Saved as <strong>Learning</strong> · <strong>Done</strong> — counts toward Progress.
+        </p>
+        <div className="space-y-1.5">
+          <label className="text-xs text-muted-foreground">Title</label>
+          <input
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") save();
+            }}
+            autoFocus
+            placeholder="e.g. Python — pandas practice"
+            className="w-full rounded-lg border bg-background px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          />
+        </div>
+        <div className="flex justify-end gap-2">
+          <Button variant="ghost" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button onClick={save} disabled={!title.trim()}>
+            Add
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 function EditModal({
   event,
@@ -151,12 +223,78 @@ function EditModal({
   );
 }
 
+function HabitEditModal({
+  habitId,
+  onClose,
+}: {
+  habitId: string;
+  onClose: () => void;
+}) {
+  const habit = useScheduleStore((s) => s.habits.find((h) => h.id === habitId));
+  const updateHabit = useScheduleStore((s) => s.updateHabit);
+  const removeHabit = useScheduleStore((s) => s.removeHabit);
+  const unlockHabit = useScheduleStore((s) => s.unlockHabit);
+
+  if (!habit) return null;
+  const locked = Boolean(habit.locked);
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <div className="absolute inset-0 bg-black/50" onClick={onClose} />
+      <div className="relative z-10 w-full max-w-lg space-y-4 rounded-xl border bg-card p-5 shadow-xl">
+        <div className="flex items-center justify-between">
+          <h3 className="font-semibold">Edit recurring habit</h3>
+          <Button variant="ghost" size="icon" className="size-8" onClick={onClose}>
+            <X className="size-4" />
+          </Button>
+        </div>
+
+        {locked && (
+          <p className="flex items-center gap-1.5 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-800 dark:text-amber-200">
+            <Lock className="size-3.5 shrink-0" />
+            Locked — unlock to edit.
+            <Button size="sm" variant="outline" className="ml-auto h-7" onClick={() => unlockHabit(habit.id)}>
+              <LockOpen className="size-3.5" />
+              Unlock
+            </Button>
+          </p>
+        )}
+
+        <HabitEditor
+          habit={habit}
+          disabled={locked}
+          onSave={(patch) => {
+            updateHabit(habit.id, patch);
+            onClose();
+          }}
+          onCancel={onClose}
+        />
+
+        {!locked && (
+          <Button
+            variant="ghost"
+            className="text-destructive"
+            onClick={() => {
+              removeHabit(habit.id);
+              onClose();
+            }}
+          >
+            <Trash2 className="size-4" />
+            Delete habit
+          </Button>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export function CalendarView() {
   const events = useScheduleStore((s) => s.events);
   const habits = useScheduleStore((s) => s.habits);
-  const addEvent = useScheduleStore((s) => s.addEvent);
   const updateEvent = useScheduleStore((s) => s.updateEvent);
   const [editingId, setEditingId] = React.useState<string | null>(null);
+  const [editingHabitId, setEditingHabitId] = React.useState<string | null>(null);
+  const [quickAdd, setQuickAdd] = React.useState<{ start: Date; end: Date } | null>(null);
   const [mounted, setMounted] = React.useState(false);
   React.useEffect(() => setMounted(true), []);
 
@@ -194,14 +332,13 @@ export function CalendarView() {
   const pad2 = (n: number) => String(n).padStart(2, "0");
   const dayHeaderContent = (arg: HeaderArg) => {
     const wk = arg.date.toLocaleDateString("en-US", { weekday: "short" });
-    // Month view shows day numbers in cells, so only the weekday is useful here.
     if (arg.view.type === "dayGridMonth") return wk;
     return `${wk} ${pad2(arg.date.getDate())}.${pad2(arg.date.getMonth() + 1)}`;
   };
 
   const onDrop = (info: EventArg) => {
     const { event } = info;
-    if (event.id.startsWith("habit_")) return; // recurring habits are read-only
+    if (event.id.startsWith("habit_")) return;
     if (event.start) {
       updateEvent(event.id, {
         start: toNaiveISO(event.start),
@@ -222,21 +359,16 @@ export function CalendarView() {
   };
 
   const onSelect = (info: SelectArg) => {
-    const title = window.prompt("Event title:");
-    if (title && title.trim()) {
-      addEvent({
-        title: title.trim(),
-        category: "other",
-        start: toNaiveISO(info.start),
-        end: toNaiveISO(info.end),
-        priority: 2,
-      });
-    }
+    setQuickAdd({ start: info.start, end: info.end });
     info.view.calendar.unselect();
   };
 
   const onEventClick = (info: ClickArg) => {
-    if (info.event.id.startsWith("habit_")) return;
+    const habitId = parseHabitId(info.event.id);
+    if (habitId) {
+      setEditingHabitId(habitId);
+      return;
+    }
     setEditingId(info.event.id);
   };
 
@@ -283,6 +415,12 @@ export function CalendarView() {
         eventClick={onEventClick}
       />
       {editing && <EditModal event={editing} onClose={() => setEditingId(null)} />}
+      {editingHabitId && (
+        <HabitEditModal habitId={editingHabitId} onClose={() => setEditingHabitId(null)} />
+      )}
+      {quickAdd && (
+        <QuickAddEventModal start={quickAdd.start} end={quickAdd.end} onClose={() => setQuickAdd(null)} />
+      )}
     </div>
   );
 }

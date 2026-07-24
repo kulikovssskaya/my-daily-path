@@ -29,6 +29,7 @@ import { QuizPanel } from "./QuizPanel";
 import { FinalReviewPanel } from "./FinalReviewPanel";
 import type { EnglishCategory, EnglishVocabWord } from "@/types";
 import { cn } from "@/lib/utils";
+import { collectKnownTerms } from "@/lib/englishVocabMix";
 
 function StatsBar() {
   const stats = useEnglishStore((s) => s.stats);
@@ -132,11 +133,11 @@ function SettingsPanel() {
           </label>
           <input
             type="number"
-            min={15}
+            min={20}
             max={30}
             value={settings.dropPoolSize}
             onChange={(e) =>
-              updateSettings({ dropPoolSize: Number(e.target.value) || 22 })
+              updateSettings({ dropPoolSize: Number(e.target.value) || 20 })
             }
             className="mt-1 w-24 rounded-lg border bg-background px-2 py-1"
           />
@@ -232,6 +233,7 @@ function WordCard({
 function VocabularyDropPanel() {
   const settings = useEnglishStore((s) => s.settings);
   const vocabulary = useEnglishStore((s) => s.vocabulary);
+  const history = useEnglishStore((s) => s.history);
   const activeSession = useEnglishStore((s) => s.activeSession);
   const applyVocabDrop = useEnglishStore((s) => s.applyVocabDrop);
   const toggleSelectWord = useEnglishStore((s) => s.toggleSelectWord);
@@ -251,10 +253,9 @@ function VocabularyDropPanel() {
     setError(null);
     try {
       const res = await postAI<{ data: EnglishVocabDrop }>("/api/ai/english-vocab", {
-        poolSize: settings.dropPoolSize,
-        focusCategories: settings.focusCategories,
+        poolSize: Math.max(20, settings.dropPoolSize || 20),
         level: settings.level,
-        knownTerms: vocabulary.map((w) => w.term),
+        knownTerms: collectKnownTerms(vocabulary, history),
       });
       applyVocabDrop(res.data);
     } catch (e) {
@@ -276,8 +277,8 @@ function VocabularyDropPanel() {
         <CardHeader>
           <CardTitle className="text-base">1. Daily Vocabulary Drop</CardTitle>
           <p className="text-sm text-muted-foreground">
-            AI generates {settings.dropPoolSize} fresh words. Pick exactly{" "}
-            {settings.dailyWordCount} for today.
+            AI generates {settings.dropPoolSize} fresh words — 50% everyday life, 50%
+            ML/IT. Pick exactly {settings.dailyWordCount} for today.
           </p>
         </CardHeader>
         <CardContent className="space-y-4">

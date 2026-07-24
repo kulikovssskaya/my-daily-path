@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { Plus, Trash2, Repeat, Sparkles, Loader2, Brain, Pencil, Check, X } from "lucide-react";
+import { Plus, Trash2, Repeat, Sparkles, Loader2, Brain, Pencil, Lock, LockOpen } from "lucide-react";
 import { useScheduleStore } from "@/stores/scheduleStore";
 import type { EventCategory, Habit } from "@/types";
 import type { AIHabit } from "@/lib/ai/schemas";
@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { CATEGORY_OPTIONS } from "@/lib/categories";
 import { postAI } from "@/lib/aiClient";
 import { cn } from "@/lib/utils";
+import { HABIT_WEEKDAYS, HabitEditor } from "@/components/schedule/HabitEditor";
 
 function AIHabitsFromText() {
   const habits = useScheduleStore((s) => s.habits);
@@ -95,134 +96,55 @@ function AIHabitsFromText() {
   );
 }
 
-const WEEKDAYS = [
-  { i: 1, l: "Mon" },
-  { i: 2, l: "Tue" },
-  { i: 3, l: "Wed" },
-  { i: 4, l: "Thu" },
-  { i: 5, l: "Fri" },
-  { i: 6, l: "Sat" },
-  { i: 0, l: "Sun" },
-];
-
-function HabitEditor({
-  habit,
-  onSave,
-  onCancel,
-}: {
-  habit: Habit;
-  onSave: (patch: Partial<Habit>) => void;
-  onCancel: () => void;
-}) {
-  const [title, setTitle] = React.useState(habit.title);
-  const [weekdays, setWeekdays] = React.useState<number[]>(habit.weekdays);
-  const [time, setTime] = React.useState(habit.time);
-  const [duration, setDuration] = React.useState(habit.duration);
-  const [category, setCategory] = React.useState<EventCategory>(habit.category);
-
-  const toggleDay = (i: number) =>
-    setWeekdays((d) => (d.includes(i) ? d.filter((x) => x !== i) : [...d, i]));
-
-  return (
-    <div className="space-y-3 rounded-lg border border-primary/30 bg-primary/5 p-3">
-      <input
-        value={title}
-        onChange={(e) => setTitle(e.target.value)}
-        className="w-full rounded-lg border bg-background px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
-      />
-      <div className="flex flex-wrap gap-1.5">
-        {WEEKDAYS.map((w) => (
-          <button
-            key={w.i}
-            type="button"
-            onClick={() => toggleDay(w.i)}
-            className={cn(
-              "h-9 min-w-11 rounded-lg border px-2 text-xs font-medium transition-colors",
-              weekdays.includes(w.i)
-                ? "border-primary bg-primary text-primary-foreground"
-                : "hover:bg-accent"
-            )}
-          >
-            {w.l}
-          </button>
-        ))}
-      </div>
-      <div className="flex flex-wrap items-center gap-2">
-        <input
-          type="time"
-          value={time}
-          onChange={(e) => setTime(e.target.value)}
-          className="rounded-lg border bg-background px-3 py-2 text-sm"
-        />
-        <div className="flex items-center gap-1">
-          <input
-            type="number"
-            min={1}
-            step={1}
-            value={duration}
-            onChange={(e) => setDuration(parseInt(e.target.value, 10) || 30)}
-            className="w-20 rounded-lg border bg-background px-3 py-2 text-sm"
-          />
-          <span className="text-xs text-muted-foreground">min</span>
-        </div>
-        <select
-          value={category}
-          onChange={(e) => setCategory(e.target.value as EventCategory)}
-          className="rounded-lg border bg-background px-3 py-2 text-sm"
-        >
-          {CATEGORY_OPTIONS.map((o) => (
-            <option key={o.value} value={o.value}>
-              {o.label}
-            </option>
-          ))}
-        </select>
-        <Button
-          size="sm"
-          onClick={() =>
-            onSave({ title: title.trim(), weekdays, time, duration, category })
-          }
-          disabled={!title.trim() || weekdays.length === 0}
-          className="ml-auto"
-        >
-          <Check className="size-4" />
-          Save
-        </Button>
-        <Button size="sm" variant="ghost" onClick={onCancel}>
-          <X className="size-4" />
-        </Button>
-      </div>
-    </div>
-  );
-}
-
 function HabitRow({ habit }: { habit: Habit }) {
   const updateHabit = useScheduleStore((s) => s.updateHabit);
   const removeHabit = useScheduleStore((s) => s.removeHabit);
+  const unlockHabit = useScheduleStore((s) => s.unlockHabit);
   const [editing, setEditing] = React.useState(false);
   const meta = CATEGORY_OPTIONS.find((o) => o.value === habit.category);
+  const locked = Boolean(habit.locked);
 
   if (editing) {
     return (
       <li>
         <HabitEditor
           habit={habit}
+          disabled={locked}
           onSave={(patch) => {
             updateHabit(habit.id, patch);
             setEditing(false);
           }}
           onCancel={() => setEditing(false)}
         />
+        {locked && (
+          <p className="mt-2 flex items-center gap-1.5 text-xs text-amber-700 dark:text-amber-400">
+            <Lock className="size-3.5" />
+            Locked — unlock to save changes.
+            <Button size="sm" variant="outline" className="ml-2 h-7" onClick={() => unlockHabit(habit.id)}>
+              <LockOpen className="size-3.5" />
+              Unlock
+            </Button>
+          </p>
+        )}
       </li>
     );
   }
 
   return (
-    <li className="flex items-center justify-between gap-2 rounded-lg border px-3 py-2 text-sm">
+    <li
+      className={cn(
+        "flex items-center justify-between gap-2 rounded-lg border px-3 py-2 text-sm",
+        locked && "border-amber-500/30 bg-amber-500/5"
+      )}
+    >
       <div className="min-w-0">
         <span className="font-medium">{habit.title}</span>
+        {locked && (
+          <span className="ml-2 text-[10px] font-medium text-amber-700 dark:text-amber-400">· locked</span>
+        )}
         <span className="ml-2 text-xs text-muted-foreground">
           {habit.weekdays
-            .map((d) => WEEKDAYS.find((w) => w.i === d)?.l)
+            .map((d) => HABIT_WEEKDAYS.find((w) => w.i === d)?.l)
             .filter(Boolean)
             .join(", ")}{" "}
           · {habit.time} · {habit.duration} min
@@ -230,20 +152,21 @@ function HabitRow({ habit }: { habit: Habit }) {
         </span>
       </div>
       <div className="flex shrink-0 gap-0.5">
-        <Button
-          variant="ghost"
-          size="icon"
-          className="size-8"
-          onClick={() => setEditing(true)}
-          aria-label="Edit habit"
-        >
-          <Pencil className="size-4" />
-        </Button>
+        {locked ? (
+          <Button variant="ghost" size="icon" className="size-8" onClick={() => unlockHabit(habit.id)} title="Unlock">
+            <LockOpen className="size-4" />
+          </Button>
+        ) : (
+          <Button variant="ghost" size="icon" className="size-8" onClick={() => setEditing(true)} aria-label="Edit habit">
+            <Pencil className="size-4" />
+          </Button>
+        )}
         <Button
           variant="ghost"
           size="icon"
           className="size-8 text-muted-foreground hover:text-destructive"
           onClick={() => removeHabit(habit.id)}
+          disabled={locked}
         >
           <Trash2 className="size-4" />
         </Button>
@@ -280,7 +203,7 @@ export function HabitsManager() {
         <div>
           <CardTitle className="text-sm">Recurring habits</CardTitle>
           <p className="text-xs text-muted-foreground">
-            Shown in agenda & calendar — click the pencil to edit
+            Shown in agenda & calendar — click a habit block or pencil to edit
           </p>
         </div>
       </CardHeader>
@@ -300,11 +223,11 @@ export function HabitsManager() {
           <input
             value={title}
             onChange={(e) => setTitle(e.target.value)}
-            placeholder="e.g. Massage"
+            placeholder="e.g. Evening stretch"
             className="w-full rounded-lg border bg-background px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
           />
           <div className="flex flex-wrap gap-1.5">
-            {WEEKDAYS.map((w) => (
+            {HABIT_WEEKDAYS.map((w) => (
               <button
                 key={w.i}
                 type="button"
@@ -333,7 +256,7 @@ export function HabitsManager() {
                 min={1}
                 step={1}
                 value={duration}
-                onChange={(e) => setDuration(parseInt(e.target.value) || 60)}
+                onChange={(e) => setDuration(parseInt(e.target.value, 10) || 60)}
                 className="w-20 rounded-lg border bg-background px-3 py-2 text-sm"
               />
               <span className="text-xs text-muted-foreground">min</span>

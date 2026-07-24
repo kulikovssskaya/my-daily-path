@@ -24,7 +24,7 @@ function day(dateKey: string, finalScore: number, completedAt?: string): English
 const baseState = (): EnglishPersistState => ({
   settings: {
     dailyWordCount: 10,
-    dropPoolSize: 22,
+    dropPoolSize: 20,
     focusCategories: ["everyday"],
     level: "B1-B2",
   },
@@ -56,7 +56,7 @@ describe("mergeEnglishPersistStates", () => {
     };
     const remote = {
       ...baseState(),
-      history: [day("2026-07-07", 93, "2026-07-07T18:00:00.000Z")],
+      history: [day("2026-07-07", 93, "2026-07-07T12:00:00.000Z")],
       stats: {
         streak: 1,
         lastStudyDate: "2026-07-07",
@@ -168,7 +168,7 @@ describe("mergeEnglishPersistBlobs", () => {
 
     const newerSmaller = wrap({
       ...baseState(),
-      history: [day("2026-07-07", 93, "2026-07-07T18:00:00.000Z")],
+      history: [day("2026-07-07", 93, "2026-07-07T12:00:00.000Z")],
       stats: {
         streak: 1,
         lastStudyDate: "2026-07-07",

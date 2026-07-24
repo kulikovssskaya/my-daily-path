@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  applyEnglishHistoryDateFixes,
   computeStatsFromHistory,
   hasEnglishDateKey,
   shiftEnglishDateKey,
@@ -24,7 +25,7 @@ describe("englishStats", () => {
     expect(stats.streak).toBe(3);
     expect(stats.lastStudyDate).toBe("2026-07-04");
     expect(stats.totalSessionsCompleted).toBe(3);
-    expect(stats.totalWordsLearned).toBe(30);
+    expect(stats.totalWordsLearned).toBe(10);
     expect(stats.averageScore).toBe(50);
   });
 
@@ -73,5 +74,55 @@ describe("englishStats", () => {
         "2026-07-06"
       )
     ).toBe(false);
+  });
+
+  it("moves 2026-07-12 to 2026-07-11 and recalculates stats", () => {
+    const patched = applyEnglishHistoryDateFixes({
+      history: [day("2026-07-12", 60), day("2026-07-10", 80)],
+      stats: {
+        streak: 1,
+        lastStudyDate: "2026-07-12",
+        totalWordsLearned: 20,
+        totalSessionsCompleted: 2,
+        averageScore: 70,
+      },
+      activeSession: null,
+    });
+
+    expect(patched.history.map((h) => h.dateKey)).toEqual(["2026-07-11", "2026-07-10"]);
+    expect(patched.history[0]?.finalScore).toBe(60);
+    expect(patched.stats.lastStudyDate).toBe("2026-07-11");
+    expect(patched.stats.streak).toBe(2);
+    expect(patched.stats.averageScore).toBe(70);
+    expect(patched.stats.totalWordsLearned).toBe(10);
+  });
+
+  it("counts unique terms when the same words repeat across sessions", () => {
+    const shared = Array.from({ length: 10 }, (_, i) => `w${i}`);
+    const vocabulary = shared.map((id, i) => ({ id, term: `term-${i}` }));
+    const stats = computeStatsFromHistory(
+      [
+        { ...day("2026-07-01", 60), wordIds: shared },
+        { ...day("2026-07-02", 70), wordIds: shared },
+      ],
+      vocabulary
+    );
+    expect(stats.totalWordsLearned).toBe(10);
+  });
+
+  it("deduplicates by term even when ids differ", () => {
+    const stats = computeStatsFromHistory(
+      [
+        {
+          ...day("2026-07-01", 60),
+          wordIds: ["w1", "w2"],
+        },
+      ],
+      [
+        { id: "w1", term: "deploy" },
+        { id: "w2", term: "Deploy" },
+      ]
+    );
+    expect(stats.totalWordsLearned).toBe(1);
   });
 });

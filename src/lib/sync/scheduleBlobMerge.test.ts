@@ -126,7 +126,7 @@ describe("mergeSchedulePersistBlobs", () => {
 });
 
 describe("mergeSchedulePersistStates", () => {
-  it("dedupes habits with same title/time/weekdays but different ids", () => {
+  it("keeps habits with different ids even if title/time match", () => {
     const merged = mergeSchedulePersistStates(
       {
         events: [],
@@ -157,7 +157,43 @@ describe("mergeSchedulePersistStates", () => {
       }
     );
 
+    expect(merged.habits).toHaveLength(2);
+  });
+
+  it("picks newer edit when merging the same habit id", () => {
+    const merged = mergeSchedulePersistStates(
+      {
+        events: [],
+        habits: [
+          {
+            id: "habit_a",
+            title: "Old title",
+            weekdays: [2],
+            time: "18:00",
+            duration: 60,
+            category: "health",
+            lastModifiedAt: "2026-07-01T12:00:00.000Z",
+          },
+        ],
+      },
+      {
+        events: [],
+        habits: [
+          {
+            id: "habit_a",
+            title: "Updated title",
+            weekdays: [2, 4],
+            time: "19:00",
+            duration: 45,
+            category: "learning",
+            lastModifiedAt: "2026-07-07T12:00:00.000Z",
+          },
+        ],
+      }
+    );
+
     expect(merged.habits).toHaveLength(1);
-    expect(merged.habits[0]?.id).toBe("habit_b");
+    expect(merged.habits[0]?.title).toBe("Updated title");
+    expect(merged.habits[0]?.time).toBe("19:00");
   });
 });

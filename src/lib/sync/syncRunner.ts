@@ -10,7 +10,7 @@ import {
 
 import { SYNC_KEY_HEADER } from "@/lib/sync/syncAuth";
 
-import { setLocalSyncMeta } from "@/lib/sync/syncAuthClient";
+import { getLocalSyncMeta, setLocalSyncMeta } from "@/lib/sync/syncAuthClient";
 
 import {
 
@@ -255,6 +255,124 @@ async function mergeServerBlobs(server: SyncResponse): Promise<boolean> {
   flushPersistedStoresToLocalStorage();
 
   return true;
+
+}
+
+
+
+type SyncTimeWinner = "cloud" | "local" | "equal";
+
+
+
+function compareSyncTimes(
+
+  cloudUpdatedAt: string | null | undefined,
+
+  localUpdatedAt: string | null
+
+): SyncTimeWinner {
+
+  if (!cloudUpdatedAt) return "local";
+
+  if (!localUpdatedAt) return "cloud";
+
+  const cloudMs = Date.parse(cloudUpdatedAt);
+
+  const localMs = Date.parse(localUpdatedAt);
+
+  if (Number.isNaN(cloudMs) || Number.isNaN(localMs)) return "equal";
+
+  if (cloudMs > localMs) return "cloud";
+
+  if (localMs > cloudMs) return "local";
+
+  return "equal";
+
+}
+
+
+
+/** Boot / tab focus: pull when cloud is newer; avoid pushing stale phone state back. */
+
+export async function syncOnAppLoad(syncKey: string): Promise<{
+
+  ok: boolean;
+
+  authFailed?: boolean;
+
+  pulled?: boolean;
+
+  pushed?: boolean;
+
+}> {
+
+  const server = await fetchServerState(syncKey);
+
+  if (server?.needsKey) return { ok: false, authFailed: true };
+
+
+
+  const winner = compareSyncTimes(server?.updatedAt, getLocalSyncMeta().updatedAt);
+
+
+
+  if (
+
+    winner === "cloud" &&
+
+    server &&
+
+    hasMeaningfulServerBlobs(server.blobs)
+
+  ) {
+
+    const pulled = await mergeServerBlobs(server);
+
+    if (server.updatedAt) setLocalSyncMeta(server.updatedAt);
+
+    return { ok: true, pulled, pushed: false };
+
+  }
+
+
+
+  if (winner === "local") {
+
+    const saved = await pushToServer(syncKey);
+
+    if (saved?.updatedAt) {
+
+      setLocalSyncMeta(saved.updatedAt);
+
+      return { ok: true, pulled: false, pushed: true };
+
+    }
+
+    return { ok: true, pulled: false, pushed: false };
+
+  }
+
+
+
+  return runCloudSync(syncKey);
+
+}
+
+
+
+export async function syncOnVisible(syncKey: string): Promise<{
+
+  ok: boolean;
+
+  authFailed?: boolean;
+
+  pulled?: boolean;
+
+  pushed?: boolean;
+
+}> {
+
+  return syncOnAppLoad(syncKey);
 
 }
 

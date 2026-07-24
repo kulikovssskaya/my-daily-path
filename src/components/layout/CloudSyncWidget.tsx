@@ -79,8 +79,9 @@ export function CloudSyncWidget({ collapsed }: { collapsed?: boolean }) {
     setBusy(true);
     const r = await pullFromCloud(key);
     setBusy(false);
-    if (r.pulled) window.location.reload();
-    else setToast(r.empty ? "Пусто" : "OK");
+    if (r.authFailed) setToast("Неверный код");
+    else if (r.pulled) window.location.reload();
+    else setToast(r.empty ? "Сначала Up на ПК" : "OK");
   }, []);
 
   const runPush = React.useCallback(async () => {

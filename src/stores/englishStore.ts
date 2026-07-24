@@ -30,7 +30,7 @@ import type { EnglishVocabDrop } from "@/lib/ai/schemas";
 
 const DEFAULT_SETTINGS: EnglishSettings = {
   dailyWordCount: 10,
-  dropPoolSize: 22,
+  dropPoolSize: 20,
   focusCategories: ["everyday", "it", "ml", "analytics", "phrasal", "idiom"],
   level: "B1-B2",
 };
@@ -345,7 +345,7 @@ export const useEnglishStore = create<EnglishState>()(
           return { score: 0, recommendations: [] };
         }
 
-        const dateKey = s.activeSession.dateKey;
+        const dateKey = todayDateKey();
 
         const words = s.getSessionWords();
         let correct = 0;
@@ -393,6 +393,7 @@ export const useEnglishStore = create<EnglishState>()(
           srs,
           activeSession: {
             ...s.activeSession,
+            dateKey,
             phase: "complete",
             finalScore: score,
             recommendations,
@@ -401,7 +402,7 @@ export const useEnglishStore = create<EnglishState>()(
           },
           history,
           stats: {
-            ...computeStatsFromHistory(history),
+            ...computeStatsFromHistory(history, s.vocabulary),
             streak: streakUpdate.streak,
             lastStudyDate: streakUpdate.lastStudyDate,
           },
@@ -444,7 +445,7 @@ export const useEnglishStore = create<EnglishState>()(
     }),
     {
       name: "mdp-english",
-      version: 4,
+      version: 7,
       migrate: (persisted) => {
         const wrapper = (persisted ?? {}) as {
           state?: Partial<EnglishState>;

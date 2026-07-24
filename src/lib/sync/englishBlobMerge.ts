@@ -1,4 +1,8 @@
-import { applyEnglishHistoryBackfill } from "@/lib/englishHistoryBackfill";
+import {
+  alignHistoryToCompletionDates,
+  applyEnglishHistoryBackfill,
+  recoverCompletedSessionHistory,
+} from "@/lib/englishHistoryBackfill";
 import { computeStatsFromHistory } from "@/lib/englishStats";
 import type {
   EnglishDailySession,
@@ -11,7 +15,7 @@ import type {
 
 const DEFAULT_SETTINGS: EnglishSettings = {
   dailyWordCount: 10,
-  dropPoolSize: 22,
+  dropPoolSize: 20,
   focusCategories: ["everyday", "it", "ml", "analytics", "phrasal", "idiom"],
   level: "B1-B2",
 };
@@ -86,7 +90,7 @@ function serializeEnglishPersistBlob(
   wrapper: Record<string, unknown>,
   state: EnglishPersistState
 ): string {
-  const version = Math.max(Number(wrapper.version) || 0, 4);
+  const version = Math.max(Number(wrapper.version) || 0, 7);
   return JSON.stringify({ ...wrapper, state, version });
 }
 
@@ -239,9 +243,11 @@ export function mergeEnglishPersistStates(
 /** Apply backfill + recompute stats so history and average score always match. */
 export function finalizeEnglishState(state: EnglishPersistState): EnglishPersistState {
   const withBackfill = applyEnglishHistoryBackfill(state);
+  const aligned = alignHistoryToCompletionDates(withBackfill);
+  const withRecovery = recoverCompletedSessionHistory(aligned);
   return {
-    ...withBackfill,
-    stats: computeStatsFromHistory(withBackfill.history),
+    ...withRecovery,
+    stats: computeStatsFromHistory(withRecovery.history, withRecovery.vocabulary),
   };
 }
 
@@ -265,7 +271,7 @@ export function mergeEnglishPersistBlobs(a: string, b: string): string {
   const wrapper = {
     ...parsedA.wrapper,
     ...parsedB.wrapper,
-    version: Math.max(Number(parsedA.wrapper.version) || 0, Number(parsedB.wrapper.version) || 0, 4),
+    version: Math.max(Number(parsedA.wrapper.version) || 0, Number(parsedB.wrapper.version) || 0, 7),
   };
   return serializeEnglishPersistBlob(wrapper, merged);
 }

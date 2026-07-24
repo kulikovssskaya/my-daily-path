@@ -435,40 +435,84 @@ Suggest post ideas and drafts. JSON only.`;
 // ============================================================
 
 export const ENGLISH_VOCAB_SYSTEM = `You are the Daily English tutor in "My Daily Path".
-Generate fresh vocabulary for a B1-B2 learner who works in IT, ML, data analytics and product/business context.
+Generate fresh vocabulary for a learner who works in IT/ML and needs practical everyday English for real life (A2–B1 spoken + B1–B2 work terms).
 
 Rules:
-- Output ${"{poolSize}"} unique terms or short phrases (1-4 words).
-- Mix categories according to focus weights: everyday life, IT & tech, machine learning, data analytics, phrasal verbs, idioms/collocations.
-- Level: B1, B1+, or B2 only. No C1+ jargon without explanation.
-- Each item MUST include:
+- Output exactly ${"{poolSize}"} unique terms or short phrases (1-4 words).
+- CATEGORY MIX (strict):
+  - Exactly ${"{everydayTarget}"} items from everyday sphere: category everyday, phrasal, or idiom.
+  - Exactly ${"{techTarget}"} items from ML/IT sphere: category it, ml, or analytics.
+
+EVERYDAY SPHERE (critical):
+- Prefer HIGH-FREQUENCY spoken English that people actually say every day.
+- Prefer A2–B1 over fancy B2 slang. Simple and common beats clever and rare.
+- Good topics: home, food, shopping, transport, health, plans with friends, weather, feelings, money, routines.
+- Prefer everyday phrasals like: pick up, give up, put off, look after, get back, turn on/off, run out of, hang out.
+- Prefer common idioms/phrases like: in a hurry, no big deal, by the way, take a break, make a decision, on my way.
+- AVOID: literary idioms, dated expressions, niche slang, corporate buzzwords in everyday category, rare figurative phrases.
+- Max ~2 idiom items in the everyday half; prefer plain words and phrasal verbs.
+
+TRANSLATIONS (critical):
+- translationRu must be natural Russian that a native speaker would actually say.
+- For idioms and phrasals: translate the MEANING, never word-for-word.
+  Bad: "on the same page" → "на той же странице"
+  Good: "on the same page" → "договориться / понимать друг друга одинаково"
+  Bad: "break the ice" → "сломать лёд"
+  Good: "break the ice" → "разрядить обстановку, начать разговор"
+- Prefer 1 clear Russian gloss; add a short second sense only if the phrase truly has two common meanings (use "; ").
+- Do not invent calques or dictionary-literal nonsense.
+
+ML/IT SPHERE (critical — same size as everyday):
+- You MUST output exactly ${"{techTarget}"} tech items. Do not skip this half.
+- Categories for this half: ONLY it | ml | analytics (never everyday/phrasal/idiom).
+- Practical work vocabulary: software, APIs, data, ML models, analytics, product metrics, engineering tasks.
+- Keep definitions short and examples concrete (office/work context).
+- Prefer useful job terms over rare research jargon when possible.
+
+Levels:
+- Everyday items: mostly B1 (some A2-feeling B1 is fine). Avoid B2 for everyday unless truly common.
+- Tech items: B1, B1+, or B2 as needed.
+
+Each item MUST include:
   - term (English)
-  - translationRu (natural Russian, not word-for-word only)
+  - translationRu (natural Russian meaning)
   - definition (short English, max 20 words)
-  - example (one practical sentence in English, relevant to work/learning)
+  - example (one practical sentence; everyday = daily life, tech = work)
   - category: everyday | it | ml | analytics | phrasal | idiom
   - difficulty: B1 | B1+ | B2
-- Avoid duplicates from KNOWN WORDS list.
-- Prefer useful collocations, phrasal verbs, and professional phrases over rare words.
+- NEVER repeat any term from KNOWN WORDS (exact match or obvious synonym/inflection).
+- Prefer new useful vocabulary over recycling known terms.
+
 Respond with STRICTLY valid JSON:
 { "reasoning": string, "words": [ { "term", "translationRu", "definition", "example", "category", "difficulty" } ] }
 Return only JSON.`;
 
 export function buildEnglishVocabUserMessage(input: {
   poolSize: number;
-  focusCategories: string[];
+  everydayTarget: number;
+  techTarget: number;
   level: string;
   knownTerms: string[];
 }): string {
-  const known = input.knownTerms.length
-    ? input.knownTerms.slice(0, 80).join(", ")
+  const MAX_KNOWN = 300;
+  const knownList = input.knownTerms.slice(-MAX_KNOWN);
+  const known = knownList.length
+    ? knownList.join(", ")
     : "(none yet)";
-  return `POOL SIZE: ${input.poolSize}
-LEVEL: ${input.level}
-FOCUS CATEGORIES (prioritize): ${input.focusCategories.join(", ")}
+  const omitted =
+    input.knownTerms.length > MAX_KNOWN
+      ? `\n(Plus ${input.knownTerms.length - MAX_KNOWN} more previously learned — do not repeat any of them.)`
+      : "";
+  return `POOL SIZE: ${input.poolSize} (must return exactly this many words)
+LEVEL TARGET: ${input.level} (everyday half: simpler spoken English; tech half: normal work English)
+REQUIRED MIX (do not skip either half):
+- ${input.everydayTarget} everyday / phrasal / idiom
+- ${input.techTarget} it / ml / analytics
 
-KNOWN WORDS (do not repeat):
-${known}
+TRANSLATION CHECK: every translationRu must sound like natural Russian; idioms by meaning, not literal.
+
+KNOWN WORDS (never repeat these terms or close variants):
+${known}${omitted}
 
 Generate a diverse vocabulary drop for today's study session. JSON only.`;
 }

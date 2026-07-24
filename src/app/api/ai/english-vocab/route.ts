@@ -2,56 +2,104 @@ import { NextResponse } from "next/server";
 import { runStructured } from "@/lib/ai/run";
 import { ENGLISH_VOCAB_SYSTEM, buildEnglishVocabUserMessage } from "@/lib/ai/prompts";
 import { englishVocabDropSchema, type EnglishVocabDrop } from "@/lib/ai/schemas";
-import { fallbackVocabDrop } from "@/lib/englishConstants";
-import type { EnglishCategory } from "@/types";
+import {
+  fallbackVocabDrop,
+  getFallbackEverydayPack,
+  getFallbackTechPack,
+} from "@/lib/englishConstants";
+import { categoryMixTargets, finalizeVocabDrop } from "@/lib/englishVocabMix";
 
 export const runtime = "nodejs";
 
-const ENGLISH_VOCAB_SYSTEM_RESOLVED = ENGLISH_VOCAB_SYSTEM.replace(
-  "${poolSize}",
-  "20-25"
-);
+function resolveEnglishVocabSystem(poolSize: number) {
+  const { everydayTarget, techTarget } = categoryMixTargets(poolSize);
+  return ENGLISH_VOCAB_SYSTEM.replaceAll("${poolSize}", String(poolSize))
+    .replaceAll("${everydayTarget}", String(everydayTarget))
+    .replaceAll("${techTarget}", String(techTarget));
+}
+
+function buildDrop(
+  words: EnglishVocabDrop["words"],
+  poolSize: number,
+  knownTerms: string[],
+  reasoning: string
+): EnglishVocabDrop {
+  const finalized = finalizeVocabDrop(
+    words,
+    poolSize,
+    knownTerms,
+    getFallbackEverydayPack(),
+    getFallbackTechPack()
+  );
+  return {
+    reasoning,
+    words: finalized,
+  };
+}
 
 export async function POST(req: Request) {
   const body = await req.json().catch(() => ({}));
-  const poolSize = Math.min(30, Math.max(15, Number(body?.poolSize) || 22));
+  const poolSize = Math.min(30, Math.max(20, Number(body?.poolSize) || 20));
   const level = typeof body?.level === "string" ? body.level : "B1-B2";
-  const focusCategories: EnglishCategory[] = Array.isArray(body?.focusCategories)
-    ? body.focusCategories
-    : ["everyday", "it", "ml", "analytics", "phrasal", "idiom"];
   const knownTerms: string[] = Array.isArray(body?.knownTerms)
     ? body.knownTerms.filter((t: unknown) => typeof t === "string")
     : [];
+  const { everydayTarget, techTarget } = categoryMixTargets(poolSize);
 
-  const fallback = (): EnglishVocabDrop => ({
-    reasoning: "Offline fallback vocabulary pack.",
-    words: fallbackVocabDrop(poolSize).map(({ term, translationRu, definition, example, category, difficulty }) => ({
-      term,
-      translationRu,
-      definition,
-      example,
-      category,
-      difficulty,
-    })),
-  });
+  const fallback = (): EnglishVocabDrop => {
+    const words = fallbackVocabDrop(poolSize).map(
+      ({ term, translationRu, definition, example, category, difficulty }) => ({
+        term,
+        translationRu,
+        definition,
+        example,
+        category,
+        difficulty,
+      })
+    );
+    return buildDrop(
+      words,
+      poolSize,
+      knownTerms,
+      "Offline fallback vocabulary pack (50% everyday, 50% ML/IT)."
+    );
+  };
 
   try {
     const result = await runStructured({
-      system: ENGLISH_VOCAB_SYSTEM_RESOLVED,
+      system: resolveEnglishVocabSystem(poolSize),
       user: buildEnglishVocabUserMessage({
         poolSize,
-        focusCategories,
+        everydayTarget,
+        techTarget,
         level,
         knownTerms,
       }),
       schema: englishVocabDropSchema,
       fallback,
-      temperature: 0.75,
+      temperature: 0.7,
       maxTokens: 4000,
     });
-    return NextResponse.json(result);
-  } catch (err) {
-    const message = err instanceof Error ? err.message : "AI request failed.";
-    return NextResponse.json({ error: message }, { status: 502 });
+
+    const data = buildDrop(
+      result.data.words,
+      poolSize,
+      knownTerms,
+      result.data.reasoning ||
+        `Generated ${poolSize} words: ${everydayTarget} everyday + ${techTarget} ML/IT.`
+    );
+
+    if (data.words.length < 10) {
+      return NextResponse.json({ data: fallback() });
+    }
+
+    return NextResponse.json({ ...result, data });
+  } catch {
+    // Provider outage / unexpected parse errors — still serve a usable drop.
+    return NextResponse.json({
+      data: fallback(),
+      provider: "fallback",
+      usedFallback: true,
+    });
   }
 }

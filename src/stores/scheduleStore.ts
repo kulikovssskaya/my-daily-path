@@ -44,6 +44,7 @@ interface ScheduleState {
   setHabits: (habits: AIHabit[]) => number;
   removeHabit: (id: string) => void;
   updateHabit: (id: string, patch: Partial<Habit>) => void;
+  unlockHabit: (id: string) => void;
 
   applyPlan: (aiEvents: AIEvent[], nowIso?: string) => { applied: number; droppedPast: number };
   undo: () => void;
@@ -224,6 +225,16 @@ export const useScheduleStore = create<ScheduleState>()(
             habits: s.habits.map((x) => (x.id === id ? next : x)),
           };
         }),
+
+      unlockHabit: (id) =>
+        set((s) => ({
+          past: pushHistory(s),
+          habits: s.habits.map((h) =>
+            h.id === id
+              ? { ...h, locked: false, lockedAt: undefined, lastModifiedAt: touchTimestamp() }
+              : h
+          ),
+        })),
 
       applyPlan: (aiEvents, nowIso) => {
         const today = todayKeyFromIso(nowIso ?? new Date().toISOString());
