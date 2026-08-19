@@ -27,6 +27,8 @@ function looksLikeOrphanRizeCalendarEvent(ev: {
 export interface SchedulePersistState {
   events: ScheduleEvent[];
   habits: Habit[];
+  /** habit id → ISO time when user deleted it (sync tombstone) */
+  deletedHabitIds?: Record<string, string>;
 }
 
 function parseSchedulePersistBlob(raw: string): {
@@ -45,6 +47,10 @@ function parseSchedulePersistBlob(raw: string): {
       state: {
         events: Array.isArray(state.events) ? state.events : [],
         habits: Array.isArray(state.habits) ? state.habits : [],
+        deletedHabitIds:
+          state.deletedHabitIds && typeof state.deletedHabitIds === "object"
+            ? state.deletedHabitIds
+            : {},
       },
     };
   } catch {
@@ -99,14 +105,35 @@ function pickBetterEvent(a: ScheduleEvent, b: ScheduleEvent): ScheduleEvent {
 }
 
 function pickBetterHabit(a: Habit, b: Habit): Habit {
-  if (a.locked && !b.locked) return a;
-  if (b.locked && !a.locked) return b;
-
   const ta = habitTimestamp(a);
   const tb = habitTimestamp(b);
   if (ta !== tb) return ta > tb ? a : b;
-
+  if (a.locked && !b.locked) return b;
+  if (b.locked && !a.locked) return a;
   return a;
+}
+
+function mergeDeletedHabitIds(
+  a?: Record<string, string>,
+  b?: Record<string, string>
+): Record<string, string> {
+  const out = { ...(a ?? {}) };
+  for (const [id, ts] of Object.entries(b ?? {})) {
+    if (!out[id] || ts > out[id]) out[id] = ts;
+  }
+  return out;
+}
+
+function filterDeletedHabits(
+  habits: Habit[],
+  deletedHabitIds: Record<string, string>
+): Habit[] {
+  if (Object.keys(deletedHabitIds).length === 0) return habits;
+  return habits.filter((h) => {
+    const deletedAt = deletedHabitIds[h.id];
+    if (!deletedAt) return true;
+    return habitTimestamp(h) > new Date(deletedAt).getTime();
+  });
 }
 
 export function mergeScheduleEvents(
@@ -140,9 +167,15 @@ export function mergeSchedulePersistStates(
   a: SchedulePersistState,
   b: SchedulePersistState
 ): SchedulePersistState {
+  const deletedHabitIds = mergeDeletedHabitIds(a.deletedHabitIds, b.deletedHabitIds);
+  const habits = filterDeletedHabits(
+    mergeScheduleHabits(a.habits, b.habits),
+    deletedHabitIds
+  );
   return {
     events: mergeScheduleEvents(a.events, b.events),
-    habits: mergeScheduleHabits(a.habits, b.habits),
+    habits,
+    deletedHabitIds,
   };
 }
 
@@ -153,6 +186,7 @@ export function reconcileSchedulePersistBlob(raw: string): string {
   const state = mergeSchedulePersistStates(parsed.state, {
     events: [],
     habits: [],
+    deletedHabitIds: {},
   });
 
   return serializeSchedulePersistBlob(parsed.wrapper, state);

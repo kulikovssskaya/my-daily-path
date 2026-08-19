@@ -7,7 +7,7 @@ export default function manifest(): MetadataRoute.Manifest {
     name: APP_NAME,
     short_name: "Daily Path",
     description: "Personal AI assistant for schedule, progress, cooking and career.",
-    start_url: "/schedule",
+    start_url: "/calendar",
     scope: "/",
     display: "standalone",
     background_color: "#FFFFFF",

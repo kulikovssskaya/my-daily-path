@@ -196,4 +196,32 @@ describe("mergeSchedulePersistStates", () => {
     expect(merged.habits[0]?.title).toBe("Updated title");
     expect(merged.habits[0]?.time).toBe("19:00");
   });
+
+  it("respects deleted habit tombstones on merge", () => {
+    const merged = mergeSchedulePersistStates(
+      {
+        events: [],
+        habits: [],
+        deletedHabitIds: { habit_a: "2026-07-20T12:00:00.000Z" },
+      },
+      {
+        events: [],
+        habits: [
+          {
+            id: "habit_a",
+            title: "Massage",
+            weekdays: [2, 4],
+            time: "18:00",
+            duration: 60,
+            category: "health",
+            lastModifiedAt: "2026-07-01T12:00:00.000Z",
+          },
+        ],
+        deletedHabitIds: {},
+      }
+    );
+
+    expect(merged.habits).toHaveLength(0);
+    expect(merged.deletedHabitIds?.habit_a).toBe("2026-07-20T12:00:00.000Z");
+  });
 });

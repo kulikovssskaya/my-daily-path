@@ -11,7 +11,8 @@ import { useCareerStore } from "@/stores/careerStore";
 import { useEnglishStore } from "@/stores/englishStore";
 
 const SYNC_TIMEOUT_MS = 12000;
-const PUSH_DEBOUNCE_MS = 600;
+/** Batch rapid edits into one upload to cut Fast Origin Transfer. */
+const PUSH_DEBOUNCE_MS = 8000;
 
 export function SyncGate({ children }: { children: React.ReactNode }) {
   const [ready, setReady] = React.useState(false);
@@ -55,7 +56,10 @@ export function SyncGate({ children }: { children: React.ReactNode }) {
         pushTimer.current = null;
       }
       if (isSyncEnabled() && syncKeyRef.current) {
-        await syncOnAppLoad(syncKeyRef.current);
+        await Promise.race([
+          syncOnAppLoad(syncKeyRef.current),
+          new Promise<void>((resolve) => setTimeout(resolve, 8000)),
+        ]);
       }
       bootSyncDoneRef.current = true;
       if (!cancelled) setReady(true);

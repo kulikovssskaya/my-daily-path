@@ -14,11 +14,19 @@ import {
   isLocked,
   touchTimestamp,
   writePermanentArchive,
+  removeHabitsFromPermanentArchive,
 } from "@/lib/dataProtection";
 import {
   mergeSchedulePersistStates,
   type SchedulePersistState,
 } from "@/lib/sync/scheduleBlobMerge";
+import {
+  migrateSchedulePersistSlice,
+  parseSchedulePersistSlice,
+  dropNonLearningHabits,
+} from "@/lib/sync/schedulePersistSlice";
+import { normalizeHabitTime } from "@/lib/habits";
+import { markScheduleDirty } from "@/lib/sync/scheduleDirty";
 
 interface Snapshot {
   events: ScheduleEvent[];
@@ -28,6 +36,7 @@ interface Snapshot {
 interface ScheduleState {
   events: ScheduleEvent[];
   habits: Habit[];
+  deletedHabitIds: Record<string, string>;
   /** Undo history (not persisted). */
   past: Snapshot[];
 
@@ -65,11 +74,18 @@ function habitFromAI(h: AIHabit): Habit {
     id: uid("habit"),
     title: h.title,
     weekdays: h.weekdays,
-    time: h.time,
+    time: normalizeHabitTime(h.time),
     duration: h.duration,
     category: h.category as EventCategory,
     lastModifiedAt: touchTimestamp(),
   };
+}
+
+function normalizeHabitPatch(patch: Partial<Habit>): Partial<Habit> {
+  const next = { ...patch };
+  if (typeof next.time === "string") next.time = normalizeHabitTime(next.time);
+  if (Array.isArray(next.weekdays)) next.weekdays = [...next.weekdays].sort((a, b) => a - b);
+  return next;
 }
 
 function stampEvent(
@@ -91,6 +107,7 @@ export const useScheduleStore = create<ScheduleState>()(
     (set, get) => ({
       events: [],
       habits: [],
+      deletedHabitIds: {},
       past: [],
 
       addEvent: (e) => {
@@ -168,14 +185,22 @@ export const useScheduleStore = create<ScheduleState>()(
           ),
         })),
 
-      addHabit: (h) =>
+      addHabit: (h) => {
         set((s) => ({
           past: pushHistory(s),
           habits: [
             ...s.habits,
-            { ...h, id: uid("habit"), lastModifiedAt: touchTimestamp(), locked: false },
+            {
+              ...h,
+              time: normalizeHabitTime(h.time),
+              id: uid("habit"),
+              lastModifiedAt: touchTimestamp(),
+              locked: false,
+            },
           ],
-        })),
+        }));
+        markScheduleDirty();
+      },
 
       addHabits: (aiHabits) => {
         const valid = aiHabits.filter((h) => h.title.trim() && h.weekdays.length > 0);
@@ -200,33 +225,38 @@ export const useScheduleStore = create<ScheduleState>()(
         return valid.length;
       },
 
-      removeHabit: (id) =>
-        set((s) => {
-          const h = s.habits.find((x) => x.id === id);
-          if (h && isLocked(h)) return s;
-          return {
-            past: pushHistory(s),
-            habits: s.habits.filter((x) => x.id !== id),
-          };
-        }),
+      removeHabit: (id) => {
+        const now = touchTimestamp();
+        removeHabitsFromPermanentArchive([id]);
+        set((s) => ({
+          past: pushHistory(s),
+          habits: s.habits.filter((x) => x.id !== id),
+          deletedHabitIds: { ...s.deletedHabitIds, [id]: now },
+        }));
+        markScheduleDirty();
+      },
 
-      updateHabit: (id, patch) =>
+      updateHabit: (id, patch) => {
+        const normalized = normalizeHabitPatch(patch);
         set((s) => {
           const h = s.habits.find((x) => x.id === id);
           if (!h) return s;
-          if (isLocked(h) && patch.locked !== false) return s;
-          const next = { ...h, ...patch, lastModifiedAt: touchTimestamp() };
-          if (patch.locked === false) {
-            next.locked = false;
-            next.lockedAt = undefined;
-          }
+          const next = {
+            ...h,
+            ...normalized,
+            lastModifiedAt: touchTimestamp(),
+            locked: false,
+            lockedAt: undefined,
+          };
           return {
             past: pushHistory(s),
             habits: s.habits.map((x) => (x.id === id ? next : x)),
           };
-        }),
+        });
+        markScheduleDirty();
+      },
 
-      unlockHabit: (id) =>
+      unlockHabit: (id) => {
         set((s) => ({
           past: pushHistory(s),
           habits: s.habits.map((h) =>
@@ -234,7 +264,9 @@ export const useScheduleStore = create<ScheduleState>()(
               ? { ...h, locked: false, lockedAt: undefined, lastModifiedAt: touchTimestamp() }
               : h
           ),
-        })),
+        }));
+        markScheduleDirty();
+      },
 
       applyPlan: (aiEvents, nowIso) => {
         const today = todayKeyFromIso(nowIso ?? new Date().toISOString());
@@ -291,21 +323,14 @@ export const useScheduleStore = create<ScheduleState>()(
       runProtectionCheck: () => {
         const s = get();
         const evResult = applyAutoLock(s.events, (ev) => ev.start);
-        const habResult = applyAutoLock(s.habits, (h) => h.lastModifiedAt ?? touchTimestamp());
-        const newlyLocked = evResult.newlyLocked.length + habResult.newlyLocked.length;
+        const newlyLocked = evResult.newlyLocked.length;
 
         if (newlyLocked > 0) {
-          writePermanentArchive({
-            scheduleEvents: evResult.newlyLocked,
-            habits: habResult.newlyLocked,
-          });
+          writePermanentArchive({ scheduleEvents: evResult.newlyLocked });
         }
 
-        if (
-          evResult.items !== s.events ||
-          habResult.items !== s.habits
-        ) {
-          set({ events: evResult.items, habits: habResult.items });
+        if (evResult.items !== s.events) {
+          set({ events: evResult.items });
         }
 
         return newlyLocked;
@@ -318,22 +343,29 @@ export const useScheduleStore = create<ScheduleState>()(
           state?: Partial<SchedulePersistState>;
         };
         const state = p.state ?? p;
-        const persistedSlice: SchedulePersistState = {
-          events: state.events ?? [],
-          habits: state.habits ?? [],
-        };
-        // Merge only from persisted data — never re-inject default store seeds on rehydrate.
+        const persistedSlice = parseSchedulePersistSlice(state);
         const merged = mergeSchedulePersistStates(
-          { events: [], habits: [] },
+          { events: [], habits: [], deletedHabitIds: {} },
           persistedSlice
         );
         return {
           ...current,
           events: merged.events,
           habits: merged.habits,
+          deletedHabitIds: merged.deletedHabitIds ?? {},
         };
       },
-      partialize: (s) => ({ events: s.events, habits: s.habits }),
+      version: 5,
+      migrate: (persisted, fromVersion) => {
+        let slice = migrateSchedulePersistSlice(persisted);
+        if (fromVersion < 5) slice = dropNonLearningHabits(slice);
+        return slice;
+      },
+      partialize: (s) => ({
+        events: s.events,
+        habits: s.habits,
+        deletedHabitIds: s.deletedHabitIds,
+      }),
     }
   )
 );

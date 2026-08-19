@@ -26,7 +26,8 @@ export function isSyncEnabled(): boolean {
 }
 
 export function enableSync(key: string) {
-  setStoredSyncKey(key);
+  const normalized = key.trim().replace(/^["']|["']$/g, "");
+  setStoredSyncKey(normalized);
   localStorage.setItem(SYNC_ENABLED_STORAGE, "true");
 }
 

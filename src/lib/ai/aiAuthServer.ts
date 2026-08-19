@@ -3,11 +3,12 @@ import { NextResponse } from "next/server";
 import { SYNC_KEY_HEADER } from "@/lib/sync/syncAuth";
 
 function getAiSecret(): string | null {
-  return (
+  const raw =
     process.env.AI_API_SECRET?.trim() ||
     process.env.SYNC_SECRET?.trim() ||
-    null
-  );
+    null;
+  if (!raw) return null;
+  return raw.replace(/^["']|["']$/g, "");
 }
 
 /** When set on the server, AI routes require the same code as cloud sync. */
@@ -25,7 +26,7 @@ function safeEqual(a: string, b: string): boolean {
 export function verifyAiRequest(req: Request): boolean {
   const secret = getAiSecret();
   if (!secret) return true;
-  const provided = req.headers.get(SYNC_KEY_HEADER)?.trim();
+  const provided = req.headers.get(SYNC_KEY_HEADER)?.trim().replace(/^["']|["']$/g, "");
   if (!provided) return false;
   return safeEqual(provided, secret);
 }

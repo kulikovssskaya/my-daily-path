@@ -31,7 +31,8 @@ export function flushPersistedStoresToLocalStorage() {
   writePersistBlob("mdp-schedule", {
     events: schedule.events,
     habits: schedule.habits,
-  });
+    deletedHabitIds: schedule.deletedHabitIds ?? {},
+  }, 5);
 
   const english = useEnglishStore.getState();
   const finalized = finalizeEnglishState({
@@ -64,6 +65,7 @@ export async function rehydrateAllStoresAsync(): Promise<void> {
     useCookingStore.persist.rehydrate(),
     useCareerStore.persist.rehydrate(),
     useEnglishStore.persist.rehydrate(),
+    (await import("@/stores/timerStore")).useTimerStore.persist.rehydrate(),
   ]);
 
   useEnglishStore.getState().ensureHistoryBackfill();

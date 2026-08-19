@@ -63,6 +63,22 @@ export function readPermanentArchive(): PermanentArchive {
   }
 }
 
+export function removeHabitsFromPermanentArchive(ids: string[]) {
+  if (typeof window === "undefined" || ids.length === 0) return;
+  const prev = readPermanentArchive();
+  const drop = new Set(ids);
+  const habits = prev.habits.filter((h) => !drop.has((h as { id?: string }).id ?? ""));
+  if (habits.length === prev.habits.length) return;
+  try {
+    localStorage.setItem(
+      PERMANENT_ARCHIVE_KEY,
+      JSON.stringify({ ...prev, habits, updatedAt: touchTimestamp() })
+    );
+  } catch {
+    /* best-effort */
+  }
+}
+
 export function writePermanentArchive(patch: {
   scheduleEvents?: unknown[];
   habits?: unknown[];

@@ -17,7 +17,7 @@ export function SyncKeySetup({
   const [saving, setSaving] = React.useState(false);
 
   const save = React.useCallback(async () => {
-    const trimmed = key.trim();
+    const trimmed = key.trim().replace(/^["']|["']$/g, "");
     if (trimmed.length < 8) {
       setError("Enter your sync code (at least 8 characters).");
       return;
@@ -44,8 +44,8 @@ export function SyncKeySetup({
         </CardHeader>
         <CardContent className="space-y-3 text-sm text-muted-foreground">
           <p>
-            Optional. Enter your personal sync code once — it stays saved on this device.
-            Other visitors can use the app without it.
+            Enter your personal sync code once — it stays on this device. The same code
+            unlocks cloud sync and AI features (English vocab, planner, etc.).
           </p>
           <input
             type="password"

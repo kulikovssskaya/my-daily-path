@@ -241,6 +241,7 @@ function VocabularyDropPanel() {
   const [loading, setLoading] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
   const [selectError, setSelectError] = React.useState<string | null>(null);
+  const [syncHint, setSyncHint] = React.useState(false);
 
   const dropWords = (activeSession?.dropWordIds ?? [])
     .map((id) => vocabulary.find((w) => w.id === id))
@@ -251,15 +252,29 @@ function VocabularyDropPanel() {
   const generateDrop = async () => {
     setLoading(true);
     setError(null);
+    setSyncHint(false);
     try {
-      const res = await postAI<{ data: EnglishVocabDrop }>("/api/ai/english-vocab", {
+      const res = await postAI<{
+        data: EnglishVocabDrop;
+        needsKey?: boolean;
+        usedFallback?: boolean;
+      }>("/api/ai/english-vocab", {
         poolSize: Math.max(20, settings.dropPoolSize || 20),
         level: settings.level,
         knownTerms: collectKnownTerms(vocabulary, history),
       });
       applyVocabDrop(res.data);
+      if (res.needsKey) {
+        setSyncHint(true);
+        window.dispatchEvent(new Event("mdp-open-sync-setup"));
+      }
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Could not generate vocabulary.");
+      const msg = e instanceof Error ? e.message : "Could not generate vocabulary.";
+      setError(msg);
+      if (/sync code|needsKey/i.test(msg)) {
+        setSyncHint(true);
+        window.dispatchEvent(new Event("mdp-open-sync-setup"));
+      }
     } finally {
       setLoading(false);
     }
@@ -331,6 +346,12 @@ function VocabularyDropPanel() {
             </>
           )}
           {error && <p className="text-sm text-destructive">{error}</p>}
+          {syncHint && (
+            <p className="text-sm text-amber-700 dark:text-amber-400">
+              Enable Sync in the sidebar and enter your personal code for fresh AI words.
+              A local 20-word pack (10 everyday + 10 ML/IT) is used until then.
+            </p>
+          )}
         </CardContent>
       </Card>
     );

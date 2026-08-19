@@ -39,9 +39,6 @@ function buildDrop(
 }
 
 export async function POST(req: Request) {
-  const denied = guardAiRequest(req);
-  if (denied) return denied;
-
   const body = await req.json().catch(() => ({}));
   const poolSize = Math.min(30, Math.max(20, Number(body?.poolSize) || 20));
   const level = typeof body?.level === "string" ? body.level : "B1-B2";
@@ -50,7 +47,7 @@ export async function POST(req: Request) {
     : [];
   const { everydayTarget, techTarget } = categoryMixTargets(poolSize);
 
-  const fallback = (): EnglishVocabDrop => {
+  const fallback = (reasoning?: string): EnglishVocabDrop => {
     const words = fallbackVocabDrop(poolSize).map(
       ({ term, translationRu, definition, example, category, difficulty }) => ({
         term,
@@ -65,9 +62,23 @@ export async function POST(req: Request) {
       words,
       poolSize,
       knownTerms,
-      "Offline fallback vocabulary pack (50% everyday, 50% ML/IT)."
+      reasoning ??
+        "Offline fallback vocabulary pack (50% everyday, 50% ML/IT)."
     );
   };
+
+  // Missing sync code: still return a full local pack so study is not blocked.
+  const denied = guardAiRequest(req);
+  if (denied) {
+    return NextResponse.json({
+      data: fallback(
+        "Local vocabulary pack — enable sync code in the sidebar for fresh AI words."
+      ),
+      provider: "fallback",
+      usedFallback: true,
+      needsKey: true,
+    });
+  }
 
   try {
     const result = await runStructured({
@@ -80,7 +91,7 @@ export async function POST(req: Request) {
         knownTerms,
       }),
       schema: englishVocabDropSchema,
-      fallback,
+      fallback: () => fallback(),
       temperature: 0.7,
       maxTokens: 4000,
     });
@@ -99,7 +110,6 @@ export async function POST(req: Request) {
 
     return NextResponse.json({ ...result, data });
   } catch {
-    // Provider outage / unexpected parse errors — still serve a usable drop.
     return NextResponse.json({
       data: fallback(),
       provider: "fallback",

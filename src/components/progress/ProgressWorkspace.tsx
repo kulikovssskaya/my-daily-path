@@ -31,12 +31,12 @@ export function ProgressWorkspace() {
         </p>
       </div>
 
+      <ProgressCharts />
       <ProgressOverview />
+      <ProgressByActivity />
       <div id="evening-wrap">
         <EveningWrapCard />
       </div>
-      <ProgressByActivity />
-      <ProgressCharts />
       <ExportDataCard />
     </div>
   );

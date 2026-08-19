@@ -7,6 +7,7 @@ import {
   verifySyncRequest,
 } from "@/lib/sync/syncAuthServer";
 import { isCloudSyncConfigured } from "@/lib/sync/redisEnv";
+import { buildSyncSummary, emptySyncSummary } from "@/lib/sync/syncSummary";
 
 export const runtime = "nodejs";
 
@@ -19,6 +20,7 @@ function emptyResponse(extra: Record<string, unknown> = {}) {
     blobs: {},
     cloud: isCloudSyncConfigured(),
     optInRequired: requiresSyncKey(),
+    ...emptySyncSummary(),
     ...extra,
   });
 }
@@ -30,9 +32,24 @@ function unauthorized() {
   );
 }
 
+function etagFor(updatedAt: string) {
+  return `"${updatedAt}"`;
+}
+
+function parseIfNoneMatch(header: string | null): string | null {
+  if (!header) return null;
+  const raw = header.trim();
+  if (!raw || raw === "*") return null;
+  // Take first tag; strip weak validator prefix and quotes.
+  const first = raw.split(",")[0]?.trim() ?? "";
+  return first.replace(/^W\//i, "").replaceAll('"', "") || null;
+}
+
 /** Cloud sync is opt-in: no header → empty (local-only). Wrong header → 401. */
 export async function GET(req: Request) {
   const hasHeader = Boolean(req.headers.get(SYNC_KEY_HEADER)?.trim());
+  const url = new URL(req.url);
+  const metaOnly = url.searchParams.get("meta") === "1";
 
   if (requiresSyncKey()) {
     if (!hasHeader) return emptyResponse();
@@ -43,11 +60,52 @@ export async function GET(req: Request) {
   if (!state) {
     return emptyResponse();
   }
-  return NextResponse.json({
-    ...state,
-    cloud: isCloudSyncConfigured(),
-    optInRequired: false,
-  });
+
+  const clientTag = parseIfNoneMatch(req.headers.get("if-none-match"));
+  if (clientTag && clientTag === state.updatedAt) {
+    return new NextResponse(null, {
+      status: 304,
+      headers: {
+        ETag: etagFor(state.updatedAt),
+        "Cache-Control": "private, no-cache",
+      },
+    });
+  }
+
+  const summary = buildSyncSummary(state.blobs);
+
+  if (metaOnly) {
+    return NextResponse.json(
+      {
+        updatedAt: state.updatedAt,
+        blobs: {},
+        cloud: isCloudSyncConfigured(),
+        optInRequired: false,
+        ...summary,
+      },
+      {
+        headers: {
+          ETag: etagFor(state.updatedAt),
+          "Cache-Control": "private, no-cache",
+        },
+      }
+    );
+  }
+
+  return NextResponse.json(
+    {
+      ...state,
+      cloud: isCloudSyncConfigured(),
+      optInRequired: false,
+      ...summary,
+    },
+    {
+      headers: {
+        ETag: etagFor(state.updatedAt),
+        "Cache-Control": "private, no-cache",
+      },
+    }
+  );
 }
 
 export async function POST(req: Request) {
@@ -96,5 +154,11 @@ export async function POST(req: Request) {
   }
 
   const saved = await writeSyncState(filtered);
-  return NextResponse.json(saved);
+  // Do not echo blob bodies — that doubles Fast Origin Transfer on every push.
+  return NextResponse.json({
+    updatedAt: saved.updatedAt,
+    blobs: {},
+    written: Object.keys(filtered),
+    cloud: isCloudSyncConfigured(),
+  });
 }

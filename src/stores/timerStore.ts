@@ -5,6 +5,13 @@ import { uid, toNaiveISO } from "@/lib/utils";
 import { useScheduleStore } from "@/stores/scheduleStore";
 import { useProgressStore } from "@/stores/progressStore";
 
+/** Keep only a running session when restoring from localStorage. */
+export function sanitizeActiveTimer(session: TimerSession | null | undefined): TimerSession | null {
+  if (!session || session.endedAt != null) return null;
+  if (!Number.isFinite(session.startedAt) || session.startedAt <= 0) return null;
+  return session;
+}
+
 const MIN_SAVE_MS = 60_000;
 
 interface TimerDraft {
@@ -110,7 +117,10 @@ export const useTimerStore = create<TimerState>()(
     }),
     {
       name: "mdp-timer",
-      partialize: (s) => ({ draft: s.draft, history: s.history }),
+      partialize: (s) => ({ draft: s.draft, history: s.history, active: s.active }),
+      onRehydrateStorage: () => (state) => {
+        if (state) state.active = sanitizeActiveTimer(state.active);
+      },
     }
   )
 );

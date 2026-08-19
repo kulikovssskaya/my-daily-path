@@ -15,9 +15,9 @@ function safeEqual(a: string, b: string): boolean {
 
 export function verifySyncRequest(req: Request): boolean {
   if (!isCloudSyncConfigured()) return true;
-  const secret = process.env.SYNC_SECRET?.trim();
+  const secret = process.env.SYNC_SECRET?.trim().replace(/^["']|["']$/g, "");
   if (!secret) return false;
-  const provided = req.headers.get(SYNC_KEY_HEADER)?.trim();
+  const provided = req.headers.get(SYNC_KEY_HEADER)?.trim().replace(/^["']|["']$/g, "");
   if (!provided) return false;
   return safeEqual(provided, secret);
 }

@@ -1,4 +1,6 @@
-import type { ScheduleEvent, DailyLog, EventCategory } from "@/types";
+import type { ScheduleEvent, DailyLog, EventCategory, Habit } from "@/types";
+import { habitOccurrencesForDate, type HabitOccurrence } from "@/lib/habits";
+import { titlesMatch } from "@/lib/habitDedupe";
 
 export function dateKey(d: Date): string {
   const pad = (n: number) => String(n).padStart(2, "0");
@@ -8,6 +10,89 @@ export function dateKey(d: Date): string {
 export function eventDurationHours(ev: ScheduleEvent): number {
   const ms = new Date(ev.end).getTime() - new Date(ev.start).getTime();
   return ms > 0 ? ms / 3_600_000 : 0;
+}
+
+export function occurrenceDurationHours(occ: { start: string; end: string }): number {
+  const ms = new Date(occ.end).getTime() - new Date(occ.start).getTime();
+  return ms > 0 ? ms / 3_600_000 : 0;
+}
+
+function parseNaiveLocal(iso: string): Date {
+  const [date, time = "00:00:00"] = iso.split("T");
+  const [y, m, d] = date.split("-").map(Number);
+  const [hh, mm, ss = 0] = time.split(":").map(Number);
+  return new Date(y, m - 1, d, hh, mm, ss);
+}
+
+/** Habit slot counts once its end time has passed (today) or the day is in the past. */
+export function isOccurrencePast(occ: HabitOccurrence, now = new Date()): boolean {
+  const day = occ.start.slice(0, 10);
+  const today = dateKey(now);
+  if (day < today) return true;
+  if (day > today) return false;
+  return parseNaiveLocal(occ.end).getTime() <= now.getTime();
+}
+
+/** Skip habit hours when a done Learning event already logged the same session. */
+export function habitOccurrenceCoveredByEvent(
+  occ: HabitOccurrence,
+  events: ScheduleEvent[]
+): boolean {
+  const day = occ.start.slice(0, 10);
+  return events.some(
+    (e) =>
+      e.status === "done" &&
+      e.category === "learning" &&
+      e.start.slice(0, 10) === day &&
+      titlesMatch(e.title, occ.title)
+  );
+}
+
+function* iterateDateKeys(startKey: string, endKey: string): Generator<string> {
+  const cur = parseNaiveLocal(`${startKey}T12:00:00`);
+  const end = parseNaiveLocal(`${endKey}T12:00:00`);
+  while (cur.getTime() <= end.getTime()) {
+    yield dateKey(cur);
+    cur.setDate(cur.getDate() + 1);
+  }
+}
+
+function forEachCountableLearningHabit(
+  habits: Habit[] | undefined,
+  events: ScheduleEvent[],
+  startKey: string,
+  endKey: string,
+  fn: (occ: HabitOccurrence) => void,
+  now = new Date()
+) {
+  if (!habits?.length) return;
+  const today = dateKey(now);
+  const cappedEnd = endKey > today ? today : endKey;
+  if (startKey > cappedEnd) return;
+
+  for (const key of iterateDateKeys(startKey, cappedEnd)) {
+    const [y, m, d] = key.split("-").map(Number);
+    for (const occ of habitOccurrencesForDate(habits, new Date(y, m - 1, d))) {
+      if (occ.category !== "learning") continue;
+      if (!isOccurrencePast(occ, now)) continue;
+      if (habitOccurrenceCoveredByEvent(occ, events)) continue;
+      fn(occ);
+    }
+  }
+}
+
+function learningHoursFromHabitsInRange(
+  habits: Habit[] | undefined,
+  events: ScheduleEvent[],
+  startKey: string,
+  endKey: string,
+  now = new Date()
+): number {
+  let total = 0;
+  forEachCountableLearningHabit(habits, events, startKey, endKey, (occ) => {
+    total += occurrenceDurationHours(occ);
+  }, now);
+  return total;
 }
 
 function formatHm(iso: string): string {
@@ -31,7 +116,8 @@ export interface DayMetric {
 export function dailyMetrics(
   events: ScheduleEvent[],
   days: number,
-  endDate = new Date()
+  endDate = new Date(),
+  habits?: Habit[]
 ): DayMetric[] {
   const arr: DayMetric[] = [];
   for (let i = days - 1; i >= 0; i--) {
@@ -57,6 +143,16 @@ export function dailyMetrics(
       day.learningHours += h;
       day.sessionCount += 1;
     }
+  }
+  if (habits?.length && arr.length) {
+    const startKey = arr[0].key;
+    const endKey = arr[arr.length - 1].key;
+    forEachCountableLearningHabit(habits, events, startKey, endKey, (occ) => {
+      const day = arr.find((a) => a.key === occ.start.slice(0, 10));
+      if (!day) return;
+      day.learningHours += occurrenceDurationHours(occ);
+      day.sessionCount += 1;
+    }, endDate);
   }
   return arr;
 }
@@ -91,15 +187,36 @@ export interface TrackMetric {
 }
 
 /** Group learning events by meta.track or title keyword heuristics. */
-export function hoursByTrack(events: ScheduleEvent[]): TrackMetric[] {
+export function hoursByTrack(
+  events: ScheduleEvent[],
+  sinceKey?: string,
+  habits?: Habit[]
+): TrackMetric[] {
   const map = new Map<string, TrackMetric>();
   for (const e of events) {
     if (e.status !== "done" || e.category !== "learning") continue;
+    if (sinceKey && e.start.slice(0, 10) < sinceKey) continue;
     const name = e.meta?.track?.trim() || inferTrackFromTitle(e.title);
     const cur = map.get(name) ?? { name, hours: 0, sessions: 0 };
     cur.hours += eventDurationHours(e);
     cur.sessions += 1;
     map.set(name, cur);
+  }
+  if (habits?.length) {
+    const endKey = dateKey(new Date());
+    forEachCountableLearningHabit(
+      habits,
+      events,
+      sinceKey ?? "1970-01-01",
+      endKey,
+      (occ) => {
+        const name = inferTrackFromTitle(occ.title);
+        const cur = map.get(name) ?? { name, hours: 0, sessions: 0 };
+        cur.hours += occurrenceDurationHours(occ);
+        cur.sessions += 1;
+        map.set(name, cur);
+      }
+    );
   }
   return [...map.values()].sort((a, b) => b.hours - a.hours);
 }

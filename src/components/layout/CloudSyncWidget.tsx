@@ -45,6 +45,12 @@ export function CloudSyncWidget({ collapsed }: { collapsed?: boolean }) {
   }, []);
 
   React.useEffect(() => {
+    const open = () => setShowSetup(true);
+    window.addEventListener("mdp-open-sync-setup", open);
+    return () => window.removeEventListener("mdp-open-sync-setup", open);
+  }, []);
+
+  React.useEffect(() => {
     if (!enabled || !isSyncEnabled()) return;
     const key = getStoredSyncKey();
     if (!key) return;

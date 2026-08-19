@@ -197,31 +197,6 @@ export function EveningWrapCard({ compact = false }: { compact?: boolean }) {
         </div>
       </CardHeader>
       <CardContent className="space-y-3">
-        <div className="rounded-lg border bg-muted/40 px-3 py-2 text-xs">
-          <div className="font-medium text-foreground">
-            Today · {snap.learningHours.toFixed(1)}h learning
-            {snap.sessions.length ? ` · ${snap.sessions.length} sessions` : ""}
-          </div>
-          {snap.byTrack.length > 0 ? (
-            <p className="mt-0.5 text-muted-foreground">
-              {snap.byTrack.map((t) => `${t.name} ${t.hours}h`).join(" · ")}
-            </p>
-          ) : (
-            <p className="mt-0.5 text-muted-foreground">
-              Mark Learning events done on Calendar — they fuel this summary.
-            </p>
-          )}
-          {!compact && snap.sessions.length > 0 ? (
-            <ul className="mt-2 space-y-0.5 text-muted-foreground">
-              {snap.sessions.slice(0, 6).map((s, i) => (
-                <li key={`${s.title}-${i}`}>
-                  {s.timeRange} · {s.title}
-                </li>
-              ))}
-            </ul>
-          ) : null}
-        </div>
-
         {doneToday && !draft ? (
           <p className="rounded-lg border border-emerald-500/30 bg-emerald-500/5 px-3 py-2 text-sm text-emerald-700 dark:text-emerald-400">
             Evening wrap saved for today. Streak: {streak}d. Come back tomorrow.

@@ -11,8 +11,6 @@ import {
   learningStreak,
   dateKey,
   learningHoursInRange,
-  eventDurationHours,
-  inferTrackFromTitle,
 } from "@/lib/progressAnalytics";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
@@ -71,27 +69,37 @@ function BarChart({
   );
 }
 
+/** Stable fingerprint so charts recompute when any learning session changes. */
+function useLearningEventsRevision() {
+  return useScheduleStore((s) =>
+    s.events
+      .filter((e) => e.category === "learning")
+      .map((e) => `${e.id}:${e.status}:${e.start}:${e.end}`)
+      .join("|")
+  );
+}
+
 function useWeekBounds() {
-  return React.useMemo(() => {
-    const today = dateKey(new Date());
-    const weekStart = new Date();
-    weekStart.setDate(weekStart.getDate() - 6);
-    const weekAgo = dateKey(weekStart);
+  // Recalculate each render so “today” stays correct if the tab stays open.
+  const today = dateKey(new Date());
+  const weekStart = new Date();
+  weekStart.setDate(weekStart.getDate() - 6);
+  const weekAgo = dateKey(weekStart);
 
-    const prevEnd = new Date();
-    prevEnd.setDate(prevEnd.getDate() - 7);
-    const prevWeekEnd = dateKey(prevEnd);
+  const prevEnd = new Date();
+  prevEnd.setDate(prevEnd.getDate() - 7);
+  const prevWeekEnd = dateKey(prevEnd);
 
-    const prevStart = new Date();
-    prevStart.setDate(prevStart.getDate() - 13);
-    const prevWeekStart = dateKey(prevStart);
+  const prevStart = new Date();
+  prevStart.setDate(prevStart.getDate() - 13);
+  const prevWeekStart = dateKey(prevStart);
 
-    return { today, weekAgo, prevWeekStart, prevWeekEnd };
-  }, []);
+  return { today, weekAgo, prevWeekStart, prevWeekEnd };
 }
 
 export function ProgressOverview() {
   const events = useScheduleStore((s) => s.events);
+  useLearningEventsRevision();
   const { today, weekAgo, prevWeekStart, prevWeekEnd } = useWeekBounds();
 
   const todayHours = learningHoursInRange(events, today, today);
@@ -142,19 +150,18 @@ export function ProgressOverview() {
 
 export function ProgressByActivity() {
   const events = useScheduleStore((s) => s.events);
-  const { weekAgo } = useWeekBounds();
+  const revision = useLearningEventsRevision();
 
-  const byTrack = React.useMemo(() => hoursByTrack(events), [events]);
-  const weekByTrack = React.useMemo(() => {
-    const map = new Map<string, number>();
-    for (const e of events) {
-      if (e.status !== "done" || e.category !== "learning") continue;
-      if (e.start.slice(0, 10) < weekAgo) continue;
-      const name = e.meta?.track?.trim() || inferTrackFromTitle(e.title);
-      map.set(name, (map.get(name) ?? 0) + eventDurationHours(e));
-    }
-    return map;
-  }, [events, weekAgo]);
+  const monthAgo = React.useMemo(() => {
+    const d = new Date();
+    d.setDate(d.getDate() - 29);
+    return dateKey(d);
+  }, []);
+
+  const byTrack = React.useMemo(
+    () => hoursByTrack(events, monthAgo),
+    [events, revision, monthAgo]
+  );
 
   const total = byTrack.reduce((a, t) => a + t.hours, 0);
 
@@ -166,7 +173,7 @@ export function ProgressByActivity() {
           <div>
             <CardTitle className="text-sm">By activity</CardTitle>
             <p className="text-xs text-muted-foreground">
-              Grouped from calendar titles / track (e.g. Python, With dad). Week = last 7 days.
+              Last 30 days · grouped from calendar titles / track (e.g. Python, With dad).
             </p>
           </div>
         </div>
@@ -174,19 +181,17 @@ export function ProgressByActivity() {
       <CardContent className="space-y-3">
         {byTrack.length === 0 ? (
           <p className="text-sm text-muted-foreground">
-            No completed Learning events yet. Add sessions on Calendar and mark them done.
+            No completed Learning events in the last 30 days.
           </p>
         ) : (
           byTrack.map((t) => {
             const max = byTrack[0]?.hours ?? 1;
-            const weekH = weekByTrack.get(t.name) ?? 0;
             return (
               <div key={t.name} className="space-y-1">
                 <div className="flex items-baseline justify-between gap-2 text-xs">
                   <span className="font-medium">{t.name}</span>
                   <span className="shrink-0 text-muted-foreground">
-                    {weekH.toFixed(1)}h this week · {t.hours.toFixed(1)}h all · {t.sessions}{" "}
-                    sessions
+                    {t.hours.toFixed(1)}h · {t.sessions} sessions
                   </span>
                 </div>
                 <div className="h-2 overflow-hidden rounded-full bg-muted">
@@ -212,14 +217,22 @@ export function ProgressByActivity() {
 
 export function ProgressCharts() {
   const events = useScheduleStore((s) => s.events);
+  const revision = useLearningEventsRevision();
+  const { today, weekAgo, prevWeekStart, prevWeekEnd } = useWeekBounds();
 
-  const daily7 = React.useMemo(() => dailyMetrics(events, 7), [events]);
-  const weeklyTrend = React.useMemo(() => weeklyLearningTrend(events, 4), [events]);
+  const daily7 = React.useMemo(
+    () => dailyMetrics(events, 7),
+    [events, revision, today]
+  );
+  const weeklyTrend = React.useMemo(
+    () => weeklyLearningTrend(events, 4),
+    [events, revision, today]
+  );
 
-  const { weekAgo, prevWeekStart, prevWeekEnd } = useWeekBounds();
   const thisWeekH = totalLearningHours(events, weekAgo);
   const prevWeekH = learningHoursInRange(events, prevWeekStart, prevWeekEnd);
   const trendPct = prevWeekH > 0 ? Math.round(((thisWeekH - prevWeekH) / prevWeekH) * 100) : null;
+  const chartKey = revision || today;
 
   return (
     <div className="grid gap-4 lg:grid-cols-2">
@@ -239,6 +252,7 @@ export function ProgressCharts() {
         </CardHeader>
         <CardContent>
           <BarChart
+            key={`daily-${chartKey}`}
             data={daily7.map((d) => ({ key: d.key, label: d.label, value: d.learningHours }))}
           />
         </CardContent>
@@ -256,6 +270,7 @@ export function ProgressCharts() {
         </CardHeader>
         <CardContent>
           <BarChart
+            key={`weekly-${chartKey}`}
             maxHeight={90}
             data={weeklyTrend.map((w) => ({
               key: w.weekKey,

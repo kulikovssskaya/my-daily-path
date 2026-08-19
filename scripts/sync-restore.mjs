@@ -1,18 +1,24 @@
-#!/usr/bin/env node
+﻿#!/usr/bin/env node
 /** Upload local backup to Vercel cloud. Reads SYNC_SECRET from env or .env.vercel.local */
 import fs from "node:fs";
 import path from "node:path";
 
 const API = process.env.SYNC_API_URL ?? "https://my-daily-path-ebon.vercel.app/api/sync";
 
+function normalizeSyncSecret(value) {
+  return value.trim().replace(/^\uFEFF/, "").replace(/^["']|["']$/g, "");
+}
+
 function loadSecret() {
-  if (process.env.SYNC_SECRET?.trim()) return process.env.SYNC_SECRET.trim();
+  if (process.env.SYNC_SECRET?.trim()) {
+    return normalizeSyncSecret(process.env.SYNC_SECRET);
+  }
   for (const file of [".env.vercel.local", ".env.local"]) {
     const p = path.join(process.cwd(), file);
     if (!fs.existsSync(p)) continue;
     for (const line of fs.readFileSync(p, "utf8").split("\n")) {
       const m = line.match(/^SYNC_SECRET=(.+)$/);
-      if (m) return m[1].trim().replace(/^["']|["']$/g, "");
+      if (m) return normalizeSyncSecret(m[1]);
     }
   }
   return null;

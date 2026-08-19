@@ -23,8 +23,8 @@ export default function Error({
       </p>
       <div className="flex gap-2">
         <Button onClick={() => reset()}>Try again</Button>
-        <Button variant="outline" onClick={() => window.location.assign("/schedule")}>
-          Go to Schedule
+        <Button variant="outline" onClick={() => window.location.assign("/calendar")}>
+          Go to Calendar
         </Button>
       </div>
     </div>

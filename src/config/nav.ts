@@ -1,5 +1,4 @@
 import {
-  ClipboardList,
   CalendarDays,
   Trophy,
   ChefHat,
@@ -18,15 +17,9 @@ export interface NavItem {
 
 export const NAV_ITEMS: NavItem[] = [
   {
-    href: "/schedule",
-    label: "Schedule",
-    description: "AI day planner",
-    icon: ClipboardList,
-  },
-  {
     href: "/calendar",
     label: "Calendar",
-    description: "Day / week / month",
+    description: "Learning sessions & schedule",
     icon: CalendarDays,
   },
   {
