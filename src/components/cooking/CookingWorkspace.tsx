@@ -11,6 +11,7 @@ import {
   Heart,
   Clock,
   Flame,
+  Download,
 } from "lucide-react";
 import { useCookingStore } from "@/stores/cookingStore";
 import { useMemoryStore } from "@/stores/memoryStore";
@@ -19,6 +20,19 @@ import type { AIRecipe } from "@/lib/ai/schemas";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useMounted } from "@/hooks/useMounted";
+import { downloadTextFile } from "@/lib/utils";
+
+function fridgeListFilename(): string {
+  const d = new Date();
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `fridge-${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}.txt`;
+}
+
+function formatFridgeAsText(names: string[]): string {
+  const lines = names.map((n) => n.trim()).filter(Boolean);
+  if (lines.length === 0) return "";
+  return ["Fridge", "", ...lines.map((name) => `- ${name}`)].join("\n");
+}
 
 function FridgeCard() {
   const { fridge, addItem, updateItem, removeItem, applyFridgeCommand } = useCookingStore();
@@ -38,7 +52,7 @@ function FridgeCard() {
         data: { add: { name: string; qty?: string }[]; remove: string[]; reasoning?: string };
       }>("/api/ai/fridge-command", {
         instruction: nl,
-        fridge: fridge.map((f) => (f.qty ? `${f.name} (${f.qty})` : f.name)),
+        fridge: fridge.map((f) => f.name),
       });
       const { added, removed } = applyFridgeCommand(res.data.add, res.data.remove);
       setNl("");
@@ -117,8 +131,22 @@ function FridgeCard() {
           </p>
         ) : (
           <>
-            <div className="flex items-center justify-between text-xs text-muted-foreground">
+            <div className="flex items-center justify-between gap-2 text-xs text-muted-foreground">
               <span>{fridge.length} items</span>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="h-7 gap-1 px-2 text-xs"
+                onClick={() => {
+                  const text = formatFridgeAsText(fridge.map((f) => f.name));
+                  if (!text) return;
+                  downloadTextFile(fridgeListFilename(), text);
+                }}
+              >
+                <Download className="size-3" />
+                Download list
+              </Button>
             </div>
             <ul className="space-y-1.5">
               {fridge.map((f) => (
@@ -127,12 +155,6 @@ function FridgeCard() {
                     value={f.name}
                     onChange={(e) => updateItem(f.id, { name: e.target.value })}
                     className="min-w-0 flex-1 bg-transparent text-sm outline-none"
-                  />
-                  <input
-                    value={f.qty ?? ""}
-                    onChange={(e) => updateItem(f.id, { qty: e.target.value })}
-                    placeholder="qty"
-                    className="w-20 rounded-md border bg-background px-2 py-1 text-xs"
                   />
                   <button
                     onClick={() => removeItem(f.id)}
@@ -218,7 +240,7 @@ function SuggestionsCard() {
     try {
       const memory = useMemoryStore.getState().snapshot();
       const res = await postAI<{ data: { recipes: AIRecipe[] } }>("/api/ai/recipes", {
-        fridge: fridge.map((f) => (f.qty ? `${f.name} (${f.qty})` : f.name)),
+        fridge: fridge.map((f) => f.name),
         request,
         memory,
       });

@@ -104,3 +104,16 @@ src/
 ## Требования
 
 - Node.js 18.18+ (рекомендуется LTS 20/22/24)
+
+## Auto-deploy (Vercel)
+
+Production: https://my-daily-path-ebon.vercel.app
+
+- **Cursor agent** — правило `.cursor/rules/auto-deploy-vercel.mdc`: после изменений кода агент деплоит сам.
+- **GitHub** — `.github/workflows/deploy.yml`: каждый `push` в `main` → test + lint + deploy.
+
+Один раз для GitHub Actions:
+
+1. [vercel.com/account/tokens](https://vercel.com/account/tokens) → Create Token  
+2. GitHub → Settings → Secrets → Actions → `VERCEL_TOKEN`  
+3. `git push origin main`

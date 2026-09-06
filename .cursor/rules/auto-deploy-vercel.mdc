@@ -1,0 +1,22 @@
+---
+description: Auto-deploy to Vercel production after code changes
+alwaysApply: true
+---
+
+# Auto-deploy to Vercel
+
+After completing **any user-requested code change** (features, fixes, UI updates):
+
+1. Run `npm run lint` and `npm test` when the change touches app logic.
+2. Deploy to production without asking:
+   ```bash
+   npx vercel deploy --prod --yes
+   ```
+3. Tell the user the production URL: https://my-daily-path-ebon.vercel.app
+
+Skip deploy only when:
+- The user explicitly says not to deploy
+- The task was questions/review only with **no file edits**
+- Build or tests fail — fix first, then deploy
+
+Do **not** wait for the user to ask "задеплой?" — deploy is part of finishing the task.
