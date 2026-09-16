@@ -3,7 +3,7 @@
 import * as React from "react";
 import { CVManager } from "./CVManager";
 import { JobSearch } from "./JobSearch";
-import { ApplicationsList } from "./ApplicationsList";
+import { JobTrackerDashboard } from "./JobTrackerDashboard";
 import { LinkedInSection } from "./LinkedInSection";
 import { useMounted } from "@/hooks/useMounted";
 
@@ -18,10 +18,10 @@ export function CareerWorkspace() {
     );
   }
   return (
-    <div className="mx-auto max-w-4xl space-y-6">
+    <div className="mx-auto max-w-5xl space-y-6">
+      <JobTrackerDashboard />
       <CVManager />
       <JobSearch />
-      <ApplicationsList />
       <LinkedInSection />
     </div>
   );

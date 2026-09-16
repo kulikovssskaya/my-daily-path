@@ -6,6 +6,8 @@ import type {
   JobApplication,
   LinkedInPostIdea,
   ApplicationStatus,
+  JobTrackerSettings,
+  ParsedJobPosting,
 } from "@/types";
 import type { AIJobPosting } from "@/lib/ai/schemas";
 import { uid } from "@/lib/utils";
@@ -28,12 +30,45 @@ Driven learner mastering Machine Learning with the goal of landing an offer in 3
 - Self-taught (courses, practice)
 `;
 
+const DEFAULT_TRACKER_SETTINGS: JobTrackerSettings = {
+  autoIgnoreAfterDays: 14,
+  followUpAfterDays: 4,
+};
+
+function mergeApplicationsByUrl(
+  local: JobApplication[],
+  incoming: JobApplication[]
+): JobApplication[] {
+  const map = new Map(local.map((a) => [a.id, a]));
+  for (const app of incoming) {
+    const byUrl = local.find((a) => a.url && app.url && a.url === app.url);
+    const byMonitorId = local.find((a) => a.id === app.id);
+    const existing = byUrl ?? byMonitorId;
+    if (existing) {
+      map.set(existing.id, {
+        ...existing,
+        ...app,
+        id: existing.id,
+        updatedAt: new Date().toISOString(),
+      });
+    } else {
+      map.set(app.id, app);
+    }
+  }
+  return [...map.values()].sort(
+    (a, b) =>
+      new Date(b.updatedAt ?? b.appliedAt ?? b.createdAt ?? 0).getTime() -
+      new Date(a.updatedAt ?? a.appliedAt ?? a.createdAt ?? 0).getTime()
+  );
+}
+
 interface CareerState {
   cvs: CVVersion[];
   postings: JobPosting[];
   applications: JobApplication[];
   posts: LinkedInPostIdea[];
   linkedInConnected: boolean;
+  jobTrackerSettings: JobTrackerSettings;
 
   addCV: (label: string, language: string, targetRole?: string) => string;
   addFileCV: (input: {
@@ -50,8 +85,18 @@ interface CareerState {
   setPostings: (jobs: AIJobPosting[]) => void;
 
   addApplication: (a: Omit<JobApplication, "id">) => string;
+  addApplicationFromParsed: (
+    parsed: ParsedJobPosting,
+    status?: ApplicationStatus
+  ) => string;
+  updateApplication: (id: string, patch: Partial<JobApplication>) => void;
   setApplicationStatus: (id: string, status: ApplicationStatus) => void;
   removeApplication: (id: string) => void;
+  markFollowUpPrompted: (id: string) => void;
+  dismissStale: (id: string) => void;
+  mergeTelegramApplications: (incoming: JobApplication[]) => void;
+  mergeMonitorApplications: (incoming: JobApplication[]) => void;
+  setJobTrackerSettings: (patch: Partial<JobTrackerSettings>) => void;
 
   addPosts: (
     ideas: {
@@ -85,6 +130,7 @@ export const useCareerStore = create<CareerState>()(
       applications: [],
       posts: [],
       linkedInConnected: false,
+      jobTrackerSettings: DEFAULT_TRACKER_SETTINGS,
 
       addCV: (label, language, targetRole) => {
         const id = uid("cv");
@@ -147,24 +193,93 @@ export const useCareerStore = create<CareerState>()(
         })),
       addApplication: (a) => {
         const id = uid("app");
-        set((s) => ({ applications: [{ ...a, id }, ...s.applications] }));
+        const now = new Date().toISOString();
+        set((s) => ({
+          applications: [
+            {
+              ...a,
+              id,
+              createdAt: a.createdAt ?? now,
+              updatedAt: now,
+              appliedAt:
+                a.appliedAt ??
+                (a.status === "applied" ? now : undefined),
+            },
+            ...s.applications,
+          ],
+        }));
         return id;
       },
-      setApplicationStatus: (id, status) =>
+      addApplicationFromParsed: (parsed, status = "applied") => {
+        const id = uid("app");
+        const now = new Date().toISOString();
+        set((s) => ({
+          applications: [
+            {
+              id,
+              company: parsed.company,
+              role: parsed.role,
+              description: parsed.description,
+              url: parsed.url,
+              source: parsed.source,
+              status,
+              appliedAt: status === "applied" ? now : undefined,
+              createdAt: now,
+              updatedAt: now,
+            },
+            ...s.applications,
+          ],
+        }));
+        return id;
+      },
+      updateApplication: (id, patch) =>
         set((s) => ({
           applications: s.applications.map((a) =>
             a.id === id
-              ? {
-                  ...a,
-                  status,
-                  appliedAt:
-                    status === "applied" ? new Date().toISOString() : a.appliedAt,
-                }
+              ? { ...a, ...patch, updatedAt: new Date().toISOString() }
               : a
           ),
         })),
+      setApplicationStatus: (id, status) =>
+        set((s) => ({
+          applications: s.applications.map((a) => {
+            if (a.id !== id) return a;
+            const now = new Date().toISOString();
+            return {
+              ...a,
+              status,
+              updatedAt: now,
+              appliedAt:
+                status === "applied" && !a.appliedAt ? now : a.appliedAt,
+            };
+          }),
+        })),
       removeApplication: (id) =>
         set((s) => ({ applications: s.applications.filter((a) => a.id !== id) })),
+      markFollowUpPrompted: (id) =>
+        set((s) => ({
+          applications: s.applications.map((a) =>
+            a.id === id
+              ? { ...a, followUpPromptedAt: new Date().toISOString() }
+              : a
+          ),
+        })),
+      dismissStale: (id) =>
+        set((s) => ({
+          applications: s.applications.map((a) =>
+            a.id === id
+              ? { ...a, staleDismissedAt: new Date().toISOString() }
+              : a
+          ),
+        })),
+      mergeTelegramApplications: (incoming) =>
+        set((s) => ({ applications: mergeApplicationsByUrl(s.applications, incoming) })),
+      mergeMonitorApplications: (incoming) =>
+        set((s) => ({ applications: mergeApplicationsByUrl(s.applications, incoming) })),
+      setJobTrackerSettings: (patch) =>
+        set((s) => ({
+          jobTrackerSettings: { ...s.jobTrackerSettings, ...patch },
+        })),
 
       addPosts: (ideas) => {
         const ids: string[] = [];

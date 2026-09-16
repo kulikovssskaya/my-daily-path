@@ -41,9 +41,9 @@ export const NAV_ITEMS: NavItem[] = [
     icon: ChefHat,
   },
   {
-    href: "/career",
-    label: "Work / Career",
-    description: "CV, jobs, LinkedIn",
+    href: "/applications",
+    label: "Applications",
+    description: "Job tracker & responses",
     icon: Briefcase,
   },
   {

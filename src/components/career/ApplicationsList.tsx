@@ -12,6 +12,7 @@ const STATUS_LABELS: Record<ApplicationStatus, string> = {
   applied: "Applied",
   interview: "Interview",
   rejected: "Rejected",
+  ignored: "Ignored",
   offer: "Offer",
 };
 

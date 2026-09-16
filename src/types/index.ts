@@ -79,23 +79,75 @@ export interface LearningTrack {
   lastActive?: ISODate;
 }
 
+/** Primary tracker statuses (Kanban columns). Legacy values kept for import compat. */
 export type ApplicationStatus =
   | "saved"
   | "preparing"
-  | "applied"
-  | "interview"
-  | "rejected"
+  | "applied" // Откликнулась
+  | "interview" // Интервью
+  | "rejected" // Отказ
+  | "ignored" // Игнор
   | "offer";
+
+export type JobSource = "hh.ru" | "linkedin" | "telegram" | "website" | "manual";
 
 export interface JobApplication {
   id: string;
   company: string;
   role: string;
   status: ApplicationStatus;
+  /** Vacancy URL (hh.ru, LinkedIn, company site, Telegram link). */
+  url?: string;
+  /** Short description or snippet from the posting. */
+  description?: string;
+  source?: JobSource;
   appliedAt?: ISODate;
+  createdAt?: ISODate;
+  updatedAt?: ISODate;
+  notes?: string;
+  interviewDate?: ISODate;
   cvVersionId?: string;
   coverLetter?: string;
   postingId?: string;
+  /** One-time follow-up prompt shown after 3–5 days in "applied" status. */
+  followUpPromptedAt?: ISODate;
+  /** User dismissed stale-job suggestion (14+ days without response). */
+  staleDismissedAt?: ISODate;
+  /** Added via Telegram bot (for sync). */
+  telegramMessageId?: number;
+}
+
+/** Parsed vacancy payload from URL or manual paste. */
+export interface ParsedJobPosting {
+  company: string;
+  role: string;
+  description: string;
+  url: string;
+  source: JobSource;
+  parseError?: string;
+}
+
+/** Funnel & activity metrics for the job tracker dashboard. */
+export interface JobTrackerStats {
+  today: number;
+  yesterday: number;
+  thisWeek: number;
+  activeCount: number;
+  totalCount: number;
+  interviewRate: number;
+  rejectionRate: number;
+  ignoreRate: number;
+  byStatus: Record<ApplicationStatus, number>;
+  dailyCounts: { key: string; label: string; count: number }[];
+}
+
+export interface JobTrackerSettings {
+  /** Linked Telegram chat ID for bot sync & reminders. */
+  telegramChatId?: string;
+  /** Auto-move stale "applied" to ignored after N days (0 = off). */
+  autoIgnoreAfterDays: number;
+  /** Days before first follow-up prompt (3–5). */
+  followUpAfterDays: number;
 }
 
 export interface DailyReport {
