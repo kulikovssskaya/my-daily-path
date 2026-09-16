@@ -38,18 +38,32 @@ export function JobAddForm() {
       });
       const json = await res.json();
 
-      if (res.ok && json.data?.role && json.data.role !== "Вакансия") {
+      if (
+        res.ok &&
+        json.data?.role &&
+        json.data.role !== "Job" &&
+        json.data.role !== "Вакансия" &&
+        !/^#\w/.test(json.data.role)
+      ) {
         saveParsed(json.data);
         return;
       }
 
       const partial = (json.data ?? json.partial) as ParsedJobPosting | undefined;
       setCompany(
-        partial?.company && partial.company !== "Неизвестная компания" ? partial.company : ""
+        partial?.company &&
+          partial.company !== "Unknown company" &&
+          partial.company !== "Неизвестная компания"
+          ? partial.company
+          : ""
       );
-      setRole(partial?.role && partial.role !== "Вакансия" ? partial.role : "");
+      setRole(
+        partial?.role && partial.role !== "Job" && partial.role !== "Вакансия"
+          ? partial.role
+          : ""
+      );
       setShowFields(true);
-      setError("Couldn’t read the page. Enter the role and company manually.");
+      setError("Couldn’t read the page fully. Confirm the role and company.");
     } catch {
       setShowFields(true);
       setError("Couldn’t read the link. Enter the role and company manually.");

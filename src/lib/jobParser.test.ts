@@ -4,6 +4,7 @@ import {
   extractUrls,
   parseJobHtml,
   parseManualJobText,
+  roleFromLinkedInUrl,
 } from "@/lib/jobParser";
 
 describe("jobParser", () => {
@@ -31,6 +32,34 @@ describe("jobParser", () => {
     expect(parsed.role).toContain("Data Scientist");
     expect(parsed.company).toContain("Яндекс");
     expect(parsed.description).toContain("ML team");
+  });
+
+  it("parses LinkedIn post: role from description, not hashtag title", () => {
+    const html = `
+      <html><head>
+        <meta property="og:title" content="#вакансия #remote #dataanalyst #ml | Anastasiia B." />
+        <meta property="og:description" content="
+
+Data Analyst Middle/Middle+ (iGaming / ML-решения)
+
+📍Локация: Гибрид (Лимассол)
+
+О компании: Растущая продуктовая IT-компания (NDA), на рынке уже больше года." />
+      </head></html>`;
+    const url =
+      "https://www.linkedin.com/posts/anastasiia-b-b1b17240a_auiaugauqaugautauxauoavl-remote-dataanalyst-activity-7501557684911988736-vir4";
+    const parsed = parseJobHtml(html, url);
+    expect(parsed.role).toMatch(/Data Analyst/i);
+    expect(parsed.company).toMatch(/IT-компания|Anastasiia/i);
+    expect(parsed.source).toBe("linkedin");
+  });
+
+  it("extracts role hint from LinkedIn post URL slug", () => {
+    const role = roleFromLinkedInUrl(
+      "https://www.linkedin.com/posts/user_auiaug-remote-dataanalyst-activity-123-xyz"
+    );
+    expect(role).toMatch(/Data Analyst/i);
+    expect(role).toMatch(/Remote/i);
   });
 
   it("parses manual text fallback", () => {
