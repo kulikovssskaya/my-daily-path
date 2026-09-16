@@ -127,18 +127,29 @@ export interface ParsedJobPosting {
   parseError?: string;
 }
 
+export interface PeriodCount {
+  key: string;
+  label: string;
+  count: number;
+}
+
 /** Funnel & activity metrics for the job tracker dashboard. */
 export interface JobTrackerStats {
   today: number;
   yesterday: number;
   thisWeek: number;
+  lastWeek: number;
   activeCount: number;
   totalCount: number;
+  sentTotal: number;
   interviewRate: number;
   rejectionRate: number;
   ignoreRate: number;
+  offerRate: number;
+  responseRate: number;
   byStatus: Record<ApplicationStatus, number>;
-  dailyCounts: { key: string; label: string; count: number }[];
+  dailyCounts: PeriodCount[];
+  weeklyCounts: PeriodCount[];
 }
 
 export interface JobTrackerSettings {

@@ -47,6 +47,13 @@ export function computeJobTrackerStats(
   weekStart.setDate(weekStart.getDate() - 6);
   const weekStartKey = dateKey(weekStart);
 
+  const prevWeekEnd = new Date(endDate);
+  prevWeekEnd.setDate(prevWeekEnd.getDate() - 7);
+  const prevWeekStart = new Date(prevWeekEnd);
+  prevWeekStart.setDate(prevWeekStart.getDate() - 6);
+  const prevWeekStartKey = dateKey(prevWeekStart);
+  const prevWeekEndKey = dateKey(prevWeekEnd);
+
   const byStatus = {} as Record<ApplicationStatus, number>;
   for (const s of [
     "saved",
@@ -63,9 +70,6 @@ export function computeJobTrackerStats(
     byStatus[a.status] = (byStatus[a.status] ?? 0) + 1;
   }
 
-  const withOutcome = apps.filter((a) => a.status !== "saved" && a.status !== "preparing")
-    .length;
-
   const dailyCounts: JobTrackerStats["dailyCounts"] = [];
   for (let i = 6; i >= 0; i--) {
     const d = new Date(endDate);
@@ -78,9 +82,30 @@ export function computeJobTrackerStats(
     });
   }
 
-  const appliedTotal = apps.filter((a) =>
+  const weeklyCounts: JobTrackerStats["weeklyCounts"] = [];
+  for (let w = 0; w < 4; w++) {
+    const wEnd = new Date(endDate);
+    wEnd.setDate(wEnd.getDate() - w * 7);
+    const wStart = new Date(wEnd);
+    wStart.setDate(wStart.getDate() - 6);
+    const startKey = dateKey(wStart);
+    const endKey = dateKey(wEnd);
+    const count = apps.filter((a) => {
+      const k = appliedDateKey(a);
+      return k != null && k >= startKey && k <= endKey;
+    }).length;
+    const label =
+      w === 0
+        ? "Эта неделя"
+        : `${wStart.toLocaleDateString("ru-RU", { day: "numeric", month: "short" })}–${wEnd.toLocaleDateString("ru-RU", { day: "numeric", month: "short" })}`;
+    weeklyCounts.push({ key: startKey, label, count });
+  }
+
+  const sentTotal = apps.filter((a) =>
     ["applied", "interview", "rejected", "ignored", "offer"].includes(a.status)
   ).length;
+
+  const responded = byStatus.interview + byStatus.rejected + byStatus.ignored + byStatus.offer;
 
   return {
     today: countApplicationsOnDate(apps, todayKey),
@@ -89,13 +114,21 @@ export function computeJobTrackerStats(
       const k = appliedDateKey(a);
       return k != null && k >= weekStartKey && k <= todayKey;
     }).length,
+    lastWeek: apps.filter((a) => {
+      const k = appliedDateKey(a);
+      return k != null && k >= prevWeekStartKey && k <= prevWeekEndKey;
+    }).length,
     activeCount: apps.filter((a) => ["applied", "interview"].includes(a.status)).length,
     totalCount: apps.length,
-    interviewRate: withOutcome > 0 ? (byStatus.interview / withOutcome) * 100 : 0,
-    rejectionRate: withOutcome > 0 ? (byStatus.rejected / withOutcome) * 100 : 0,
-    ignoreRate: appliedTotal > 0 ? (byStatus.ignored / appliedTotal) * 100 : 0,
+    sentTotal,
+    interviewRate: sentTotal > 0 ? (byStatus.interview / sentTotal) * 100 : 0,
+    rejectionRate: sentTotal > 0 ? (byStatus.rejected / sentTotal) * 100 : 0,
+    ignoreRate: sentTotal > 0 ? (byStatus.ignored / sentTotal) * 100 : 0,
+    offerRate: sentTotal > 0 ? (byStatus.offer / sentTotal) * 100 : 0,
+    responseRate: sentTotal > 0 ? (responded / sentTotal) * 100 : 0,
     byStatus,
     dailyCounts,
+    weeklyCounts,
   };
 }
 

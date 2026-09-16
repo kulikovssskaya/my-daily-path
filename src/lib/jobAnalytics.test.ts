@@ -38,6 +38,8 @@ describe("jobAnalytics", () => {
     expect(stats.totalCount).toBe(3);
     expect(stats.activeCount).toBe(2);
     expect(stats.byStatus.interview).toBe(1);
+    expect(stats.sentTotal).toBe(3);
+    expect(stats.weeklyCounts).toHaveLength(4);
   });
 
   it("filters by query and status", () => {

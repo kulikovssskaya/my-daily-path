@@ -26,12 +26,12 @@ export function JobTrackerDashboard() {
     <div className="space-y-6">
       <JobAddForm />
 
+      <JobStatsWidget applications={applications} />
+
       <JobRemindersBanner />
 
       <div className="space-y-3">
-        <div className="flex flex-wrap items-end justify-between gap-3">
-          <JobStatsWidget applications={applications} />
-          <div className="flex flex-wrap items-center gap-2">
+        <div className="flex flex-wrap items-center justify-end gap-2">
             <div className="relative">
               <Search className="absolute left-2.5 top-2.5 size-3.5 text-muted-foreground" />
               <input
@@ -74,7 +74,6 @@ export function JobTrackerDashboard() {
                 <LayoutGrid className="size-3.5" />
               </button>
             </div>
-          </div>
         </div>
 
         {filtered.length === 0 ? (
