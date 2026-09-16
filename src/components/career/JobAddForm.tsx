@@ -43,15 +43,16 @@ export function JobAddForm() {
         return;
       }
 
-      // Could not parse — show manual fields prefilled with URL
       const partial = (json.data ?? json.partial) as ParsedJobPosting | undefined;
-      setCompany(partial?.company && partial.company !== "Неизвестная компания" ? partial.company : "");
+      setCompany(
+        partial?.company && partial.company !== "Неизвестная компания" ? partial.company : ""
+      );
       setRole(partial?.role && partial.role !== "Вакансия" ? partial.role : "");
       setShowFields(true);
-      setError("Не удалось прочитать страницу. Впиши название и компанию вручную.");
+      setError("Couldn’t read the page. Enter the role and company manually.");
     } catch {
       setShowFields(true);
-      setError("Не удалось прочитать ссылку. Впиши название и компанию вручную.");
+      setError("Couldn’t read the link. Enter the role and company manually.");
     } finally {
       setLoading(false);
     }
@@ -59,7 +60,7 @@ export function JobAddForm() {
 
   const saveManual = () => {
     if (!role.trim() || !company.trim()) {
-      setError("Нужны название вакансии и компания");
+      setError("Role and company are required");
       return;
     }
     saveParsed({
@@ -74,7 +75,7 @@ export function JobAddForm() {
   return (
     <div className="space-y-2">
       <p className="text-sm text-muted-foreground">
-        Откликнулась сама (hh / LinkedIn / Telegram)? Вставь ссылку и нажми «Добавить».
+        Applied yourself (hh / LinkedIn / Telegram)? Paste the link and click Add.
       </p>
       <div className="flex flex-col gap-2 sm:flex-row">
         <input
@@ -84,7 +85,7 @@ export function JobAddForm() {
           onKeyDown={(e) => {
             if (e.key === "Enter") void addFromUrl();
           }}
-          placeholder="https://hh.ru/vacancy/… или linkedin.com/jobs/…"
+          placeholder="https://hh.ru/vacancy/… or linkedin.com/jobs/…"
           className="flex-1 rounded-md border bg-background px-3 py-2.5 text-sm"
         />
         <Button
@@ -94,7 +95,7 @@ export function JobAddForm() {
           className="shrink-0 gap-1.5"
         >
           {loading ? <Loader2 className="size-4 animate-spin" /> : <Plus className="size-4" />}
-          Добавить
+          Add
         </Button>
       </div>
 
@@ -105,18 +106,18 @@ export function JobAddForm() {
           <input
             value={role}
             onChange={(e) => setRole(e.target.value)}
-            placeholder="Название вакансии"
+            placeholder="Job title"
             className="rounded-md border bg-background px-3 py-2 text-sm"
           />
           <input
             value={company}
             onChange={(e) => setCompany(e.target.value)}
-            placeholder="Компания"
+            placeholder="Company"
             className="rounded-md border bg-background px-3 py-2 text-sm"
           />
           <Button type="button" size="sm" onClick={saveManual} className="sm:col-span-2 w-fit gap-1.5">
             <Plus className="size-3.5" />
-            Сохранить отклик
+            Save application
           </Button>
         </div>
       ) : null}

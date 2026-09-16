@@ -214,10 +214,10 @@ export function JobKanbanBoard({
           <table className="w-full min-w-[640px] text-sm">
             <thead>
               <tr className="border-b bg-muted/50 text-left text-xs text-muted-foreground">
-                <th className="px-3 py-2">Позиция</th>
-                <th className="px-3 py-2">Компания</th>
-                <th className="px-3 py-2">Дата</th>
-                <th className="px-3 py-2">Статус</th>
+                <th className="px-3 py-2">Role</th>
+                <th className="px-3 py-2">Company</th>
+                <th className="px-3 py-2">Date</th>
+                <th className="px-3 py-2">Status</th>
                 <th className="px-3 py-2" />
               </tr>
             </thead>
@@ -253,7 +253,7 @@ export function JobKanbanBoard({
                           rel="noopener noreferrer"
                           className="text-xs text-primary hover:underline"
                         >
-                          ссылка
+                          link
                         </a>
                       ) : null}
                       <button
@@ -261,7 +261,7 @@ export function JobKanbanBoard({
                         onClick={() => setEditing(app)}
                         className="text-xs text-muted-foreground hover:text-foreground"
                       >
-                        изм.
+                        edit
                       </button>
                     </div>
                   </td>

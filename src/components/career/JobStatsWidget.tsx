@@ -9,7 +9,7 @@ import {
   Send,
   TrendingUp,
 } from "lucide-react";
-import { computeJobTrackerStats, STATUS_LABELS_RU } from "@/lib/jobAnalytics";
+import { computeJobTrackerStats } from "@/lib/jobAnalytics";
 import type { JobApplication } from "@/types";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
@@ -100,6 +100,14 @@ function StatusBar({
   );
 }
 
+const STATUS_LABELS_EN: Record<string, string> = {
+  applied: "Applied",
+  interview: "Interview",
+  rejected: "Rejected",
+  ignored: "Ignored",
+  offer: "Offer",
+};
+
 export function JobStatsWidget({ applications }: { applications: JobApplication[] }) {
   const stats = React.useMemo(
     () => computeJobTrackerStats(applications),
@@ -112,10 +120,10 @@ export function JobStatsWidget({ applications }: { applications: JobApplication[
       : null;
 
   const funnelRows = [
-    { label: STATUS_LABELS_RU.interview, count: stats.byStatus.interview, pct: stats.interviewRate },
-    { label: STATUS_LABELS_RU.rejected, count: stats.byStatus.rejected, pct: stats.rejectionRate },
-    { label: STATUS_LABELS_RU.ignored, count: stats.byStatus.ignored, pct: stats.ignoreRate },
-    { label: STATUS_LABELS_RU.offer, count: stats.byStatus.offer, pct: stats.offerRate },
+    { label: STATUS_LABELS_EN.interview, count: stats.byStatus.interview, pct: stats.interviewRate },
+    { label: STATUS_LABELS_EN.rejected, count: stats.byStatus.rejected, pct: stats.rejectionRate },
+    { label: STATUS_LABELS_EN.ignored, count: stats.byStatus.ignored, pct: stats.ignoreRate },
+    { label: STATUS_LABELS_EN.offer, count: stats.byStatus.offer, pct: stats.offerRate },
   ];
   const maxFunnelPct = Math.max(1, ...funnelRows.map((r) => r.pct));
 
@@ -124,31 +132,31 @@ export function JobStatsWidget({ applications }: { applications: JobApplication[
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         <StatTile
           icon={Clock}
-          label="Сегодня"
+          label="Today"
           value={String(stats.today)}
-          hint="откликов за сегодня"
+          hint="applications today"
         />
         <StatTile
           icon={CalendarCheck}
-          label="Эта неделя"
+          label="This week"
           value={String(stats.thisWeek)}
           hint={
             weekTrendPct !== null
-              ? `${weekTrendPct >= 0 ? "+" : ""}${weekTrendPct}% vs прошлая неделя`
-              : `${stats.lastWeek} на прошлой неделе`
+              ? `${weekTrendPct >= 0 ? "+" : ""}${weekTrendPct}% vs prev week`
+              : `${stats.lastWeek} last week`
           }
         />
         <StatTile
           icon={Send}
-          label="Ждут ответа"
+          label="Waiting"
           value={String(stats.byStatus.applied)}
-          hint="статус «Откликнулась»"
+          hint="status Applied"
         />
         <StatTile
           icon={TrendingUp}
-          label="Всего"
+          label="All time"
           value={String(stats.sentTotal)}
-          hint={`${stats.responseRate.toFixed(0)}% получили ответ`}
+          hint={`${stats.responseRate.toFixed(0)}% got a reply`}
         />
       </div>
 
@@ -157,15 +165,15 @@ export function JobStatsWidget({ applications }: { applications: JobApplication[
           <CardHeader className="flex-row items-center gap-3 space-y-0 pb-2">
             <BarChart3 className="size-4 text-primary" />
             <div className="min-w-0 flex-1">
-              <CardTitle className="text-sm">Отклики по дням</CardTitle>
-              <p className="text-xs text-muted-foreground">Последние 7 дней</p>
+              <CardTitle className="text-sm">Daily applications</CardTitle>
+              <p className="text-xs text-muted-foreground">Last 7 days</p>
             </div>
             {weekTrendPct !== null && (
               <span
                 className={`text-xs tabular-nums ${weekTrendPct >= 0 ? "text-emerald-600" : "text-amber-600"}`}
               >
                 {weekTrendPct >= 0 ? "+" : ""}
-                {weekTrendPct}% vs прошлая неделя
+                {weekTrendPct}% vs prev week
               </span>
             )}
           </CardHeader>
@@ -180,7 +188,7 @@ export function JobStatsWidget({ applications }: { applications: JobApplication[
               />
             ) : (
               <p className="py-6 text-center text-sm text-muted-foreground">
-                Пока нет откликов за последние 7 дней
+                No applications in the last 7 days
               </p>
             )}
           </CardContent>
@@ -191,8 +199,8 @@ export function JobStatsWidget({ applications }: { applications: JobApplication[
             <div className="flex items-center gap-3">
               <TrendingUp className="size-4 text-primary" />
               <div>
-                <CardTitle className="text-sm">По неделям</CardTitle>
-                <p className="text-xs text-muted-foreground">Откликов за каждую неделю</p>
+                <CardTitle className="text-sm">Weekly trend</CardTitle>
+                <p className="text-xs text-muted-foreground">Applications per week</p>
               </div>
             </div>
           </CardHeader>
@@ -208,7 +216,7 @@ export function JobStatsWidget({ applications }: { applications: JobApplication[
               />
             ) : (
               <p className="py-6 text-center text-sm text-muted-foreground">
-                Пока нет откликов за последние 4 недели
+                No applications in the last 4 weeks
               </p>
             )}
           </CardContent>
@@ -220,9 +228,9 @@ export function JobStatsWidget({ applications }: { applications: JobApplication[
           <div className="flex items-center gap-3">
             <Briefcase className="size-4 text-primary" />
             <div>
-              <CardTitle className="text-sm">Конверсия и статусы</CardTitle>
+              <CardTitle className="text-sm">Conversion & status</CardTitle>
               <p className="text-xs text-muted-foreground">
-                Из {stats.sentTotal} откликов · {stats.activeCount} в работе
+                Of {stats.sentTotal} applications · {stats.activeCount} in progress
               </p>
             </div>
           </div>
@@ -230,12 +238,12 @@ export function JobStatsWidget({ applications }: { applications: JobApplication[
         <CardContent className="space-y-3">
           {stats.sentTotal === 0 ? (
             <p className="text-sm text-muted-foreground">
-              Добавь первый отклик — здесь появится воронка.
+              Add your first application — the funnel will show up here.
             </p>
           ) : (
             <>
               <StatusBar
-                label={STATUS_LABELS_RU.applied}
+                label={STATUS_LABELS_EN.applied}
                 count={stats.byStatus.applied}
                 pct={stats.sentTotal > 0 ? (stats.byStatus.applied / stats.sentTotal) * 100 : 0}
                 maxPct={100}
@@ -253,8 +261,8 @@ export function JobStatsWidget({ applications }: { applications: JobApplication[
           )}
           {stats.sentTotal > 0 ? (
             <p className="text-[11px] text-muted-foreground">
-              Интервью: {stats.interviewRate.toFixed(0)}% · Отказ: {stats.rejectionRate.toFixed(0)}%
-              % · Игнор: {stats.ignoreRate.toFixed(0)}%
+              Interview: {stats.interviewRate.toFixed(0)}% · Rejected:{" "}
+              {stats.rejectionRate.toFixed(0)}% · Ignored: {stats.ignoreRate.toFixed(0)}%
             </p>
           ) : null}
         </CardContent>

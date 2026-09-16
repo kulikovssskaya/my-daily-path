@@ -8,13 +8,13 @@ export const TRACKER_STATUSES: ApplicationStatus[] = [
 ];
 
 export const STATUS_LABELS_RU: Record<ApplicationStatus, string> = {
-  saved: "Сохранено",
-  preparing: "Готовлю",
-  applied: "Откликнулась",
-  interview: "Интервью",
-  rejected: "Отказ",
-  ignored: "Игнор",
-  offer: "Оффер",
+  saved: "Saved",
+  preparing: "Preparing",
+  applied: "Applied",
+  interview: "Interview",
+  rejected: "Rejected",
+  ignored: "Ignored",
+  offer: "Offer",
 };
 
 export function dateKey(d: Date): string {
@@ -77,7 +77,7 @@ export function computeJobTrackerStats(
     const key = dateKey(d);
     dailyCounts.push({
       key,
-      label: d.toLocaleDateString("ru-RU", { weekday: "short", day: "numeric" }),
+      label: d.toLocaleDateString("en-US", { weekday: "short", day: "numeric" }),
       count: countApplicationsOnDate(apps, key),
     });
   }
@@ -96,8 +96,8 @@ export function computeJobTrackerStats(
     }).length;
     const label =
       w === 0
-        ? "Эта неделя"
-        : `${wStart.toLocaleDateString("ru-RU", { day: "numeric", month: "short" })}–${wEnd.toLocaleDateString("ru-RU", { day: "numeric", month: "short" })}`;
+        ? "This week"
+        : `${wStart.toLocaleDateString("en-US", { month: "short", day: "numeric" })}`;
     weeklyCounts.push({ key: startKey, label, count });
   }
 

@@ -38,7 +38,7 @@ export function JobTrackerDashboard() {
                 type="search"
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
-                placeholder="Поиск…"
+                placeholder="Search…"
                 className="w-40 rounded-md border bg-background py-1.5 pl-8 pr-2 text-sm sm:w-52"
               />
             </div>
@@ -49,7 +49,7 @@ export function JobTrackerDashboard() {
               }
               className="rounded-md border bg-background px-2 py-1.5 text-sm"
             >
-              <option value="all">Все</option>
+              <option value="all">All</option>
               {TRACKER_STATUSES.map((s) => (
                 <option key={s} value={s}>
                   {STATUS_LABELS_RU[s]}
@@ -78,9 +78,9 @@ export function JobTrackerDashboard() {
 
         {filtered.length === 0 ? (
           <p className="rounded-lg border border-dashed py-10 text-center text-sm text-muted-foreground">
-            {applications.length === 0
-              ? "Пока пусто. Вставь ссылку сверху или нажми «Отправила» в боте."
-              : "Ничего не найдено"}
+              {applications.length === 0
+                ? "Nothing yet. Paste a link above, or tap “Sent” in the bot."
+                : "No matches"}
           </p>
         ) : (
           <JobKanbanBoard applications={filtered} view={view} />
