@@ -223,13 +223,13 @@ export function JobKanbanBoard({
             </thead>
             <tbody>
               {applications.map((app) => (
-                <tr key={app.id} className="border-b last:border-0">
-                  <td className="px-3 py-2 font-medium">{app.role}</td>
-                  <td className="px-3 py-2 text-muted-foreground">{app.company}</td>
-                  <td className="px-3 py-2 text-xs">
+                <tr key={app.id} className="border-b last:border-0 hover:bg-muted/30">
+                  <td className="px-3 py-2.5 font-medium">{app.role}</td>
+                  <td className="px-3 py-2.5 text-muted-foreground">{app.company}</td>
+                  <td className="px-3 py-2.5 text-xs tabular-nums">
                     {(app.appliedAt ?? app.createdAt)?.slice(0, 10) ?? "—"}
                   </td>
-                  <td className="px-3 py-2">
+                  <td className="px-3 py-2.5">
                     <select
                       value={app.status}
                       onChange={(e) =>
@@ -244,17 +244,26 @@ export function JobKanbanBoard({
                       ))}
                     </select>
                   </td>
-                  <td className="px-3 py-2">
-                    {app.url ? (
-                      <a
-                        href={app.url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-primary hover:underline"
+                  <td className="px-3 py-2.5">
+                    <div className="flex items-center gap-2">
+                      {app.url ? (
+                        <a
+                          href={app.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-xs text-primary hover:underline"
+                        >
+                          ссылка
+                        </a>
+                      ) : null}
+                      <button
+                        type="button"
+                        onClick={() => setEditing(app)}
+                        className="text-xs text-muted-foreground hover:text-foreground"
                       >
-                        ↗
-                      </a>
-                    ) : null}
+                        изм.
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}

@@ -16,8 +16,8 @@ export const metadata: Metadata = { title: "Applications" };
 export default function ApplicationsPage() {
   return (
     <PageShell
-      title="Job Applications"
-      description="Track responses, sync from SearchJob bot, add links manually"
+      title="Отклики"
+      description="Список вакансий, куда ты уже откликнулась"
       icon={<Briefcase className="size-5" />}
     >
       <ApplicationsWorkspace />

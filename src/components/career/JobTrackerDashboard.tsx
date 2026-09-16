@@ -1,11 +1,10 @@
 "use client";
 
 import * as React from "react";
-import { Briefcase, LayoutGrid, List, Search } from "lucide-react";
+import { LayoutGrid, List, Search } from "lucide-react";
 import { useCareerStore } from "@/stores/careerStore";
 import { filterApplications, STATUS_LABELS_RU, TRACKER_STATUSES } from "@/lib/jobAnalytics";
 import type { ApplicationStatus } from "@/types";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { JobAddForm } from "./JobAddForm";
 import { JobStatsWidget } from "./JobStatsWidget";
 import { JobKanbanBoard } from "./JobKanbanBoard";
@@ -16,7 +15,7 @@ export function JobTrackerDashboard() {
   const applications = useCareerStore((s) => s.applications);
   const [query, setQuery] = React.useState("");
   const [statusFilter, setStatusFilter] = React.useState<ApplicationStatus | "all">("all");
-  const [view, setView] = React.useState<"kanban" | "table">("kanban");
+  const [view, setView] = React.useState<"kanban" | "table">("table");
 
   const filtered = React.useMemo(
     () => filterApplications(applications, query, statusFilter),
@@ -24,32 +23,23 @@ export function JobTrackerDashboard() {
   );
 
   return (
-    <div className="space-y-4">
-      <Card>
-        <CardHeader className="flex-row items-center gap-3 space-y-0">
-          <span className="flex size-9 items-center justify-center rounded-lg bg-primary/10 text-primary">
-            <Briefcase className="size-4" />
-          </span>
-          <div>
-            <CardTitle className="text-base">Трекер откликов</CardTitle>
-            <p className="text-xs text-muted-foreground">
-              Kanban, парсинг ссылок, напоминания и аналитика
-            </p>
-          </div>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <JobAddForm />
-          <JobRemindersBanner />
+    <div className="space-y-6">
+      <JobAddForm />
 
-          <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-            <div className="relative flex-1">
-              <Search className="absolute left-2.5 top-2.5 size-4 text-muted-foreground" />
+      <JobRemindersBanner />
+
+      <div className="space-y-3">
+        <div className="flex flex-wrap items-end justify-between gap-3">
+          <JobStatsWidget applications={applications} />
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="relative">
+              <Search className="absolute left-2.5 top-2.5 size-3.5 text-muted-foreground" />
               <input
                 type="search"
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
-                placeholder="Поиск: позиция, компания, дата…"
-                className="w-full rounded-md border bg-background py-2 pl-9 pr-3 text-sm"
+                placeholder="Поиск…"
+                className="w-40 rounded-md border bg-background py-1.5 pl-8 pr-2 text-sm sm:w-52"
               />
             </div>
             <select
@@ -57,9 +47,9 @@ export function JobTrackerDashboard() {
               onChange={(e) =>
                 setStatusFilter(e.target.value as ApplicationStatus | "all")
               }
-              className="rounded-md border bg-background px-3 py-2 text-sm"
+              className="rounded-md border bg-background px-2 py-1.5 text-sm"
             >
-              <option value="all">Все статусы</option>
+              <option value="all">Все</option>
               {TRACKER_STATUSES.map((s) => (
                 <option key={s} value={s}>
                   {STATUS_LABELS_RU[s]}
@@ -69,36 +59,35 @@ export function JobTrackerDashboard() {
             <div className="flex rounded-md border p-0.5">
               <button
                 type="button"
-                onClick={() => setView("kanban")}
-                className={`rounded px-2 py-1.5 ${view === "kanban" ? "bg-muted" : ""}`}
-                title="Kanban"
+                onClick={() => setView("table")}
+                className={`rounded px-2 py-1 ${view === "table" ? "bg-muted" : ""}`}
+                title="Список"
               >
-                <LayoutGrid className="size-4" />
+                <List className="size-3.5" />
               </button>
               <button
                 type="button"
-                onClick={() => setView("table")}
-                className={`rounded px-2 py-1.5 ${view === "table" ? "bg-muted" : ""}`}
-                title="Таблица"
+                onClick={() => setView("kanban")}
+                className={`rounded px-2 py-1 ${view === "kanban" ? "bg-muted" : ""}`}
+                title="Колонки"
               >
-                <List className="size-4" />
+                <LayoutGrid className="size-3.5" />
               </button>
             </div>
           </div>
+        </div>
 
-          {filtered.length === 0 ? (
-            <p className="rounded-lg border border-dashed py-8 text-center text-sm text-muted-foreground">
-              {applications.length === 0
-                ? "Пока нет откликов — добавьте ссылку на вакансию выше"
-                : "Ничего не найдено по фильтрам"}
-            </p>
-          ) : (
-            <JobKanbanBoard applications={filtered} view={view} />
-          )}
-        </CardContent>
-      </Card>
+        {filtered.length === 0 ? (
+          <p className="rounded-lg border border-dashed py-10 text-center text-sm text-muted-foreground">
+            {applications.length === 0
+              ? "Пока пусто. Вставь ссылку сверху или нажми «Отправила» в боте."
+              : "Ничего не найдено"}
+          </p>
+        ) : (
+          <JobKanbanBoard applications={filtered} view={view} />
+        )}
+      </div>
 
-      <JobStatsWidget applications={applications} />
       <MonitorSyncCard />
     </div>
   );

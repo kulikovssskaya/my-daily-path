@@ -42,8 +42,8 @@ export const NAV_ITEMS: NavItem[] = [
   },
   {
     href: "/applications",
-    label: "Applications",
-    description: "Job tracker & responses",
+    label: "Отклики",
+    description: "Вакансии и статусы",
     icon: Briefcase,
   },
   {
