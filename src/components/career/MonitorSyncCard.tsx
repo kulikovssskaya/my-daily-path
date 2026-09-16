@@ -4,7 +4,12 @@ import * as React from "react";
 import { Loader2, RefreshCw } from "lucide-react";
 import { useCareerStore } from "@/stores/careerStore";
 
-/** Quiet auto-sync from SearchJob bot. Settings only if chat ID missing. */
+const DEFAULT_CHAT =
+  typeof process.env.NEXT_PUBLIC_TELEGRAM_CHAT_ID === "string"
+    ? process.env.NEXT_PUBLIC_TELEGRAM_CHAT_ID.trim()
+    : "";
+
+/** Quiet auto-sync from SearchJob bot after “Отправила”. */
 export function MonitorSyncCard() {
   const settings = useCareerStore((s) => s.jobTrackerSettings);
   const setSettings = useCareerStore((s) => s.setJobTrackerSettings);
@@ -13,8 +18,15 @@ export function MonitorSyncCard() {
   const [syncing, setSyncing] = React.useState(false);
   const [msg, setMsg] = React.useState<string | null>(null);
 
+  React.useEffect(() => {
+    if (!settings.telegramChatId?.trim() && DEFAULT_CHAT) {
+      setSettings({ telegramChatId: DEFAULT_CHAT });
+    }
+  }, [settings.telegramChatId, setSettings]);
+
+  const chatId = settings.telegramChatId?.trim() || DEFAULT_CHAT;
+
   const syncFromMonitor = React.useCallback(async () => {
-    const chatId = settings.telegramChatId?.trim();
     if (!chatId) return;
     setSyncing(true);
     try {
@@ -26,21 +38,23 @@ export function MonitorSyncCard() {
       const apps = json.applications ?? [];
       if (apps.length > 0) {
         mergeMonitor(apps);
-        setMsg(`Подтянуто ${apps.length} из бота`);
+        setMsg(`Synced ${apps.length} from bot`);
+      } else {
+        setMsg("No new items from bot yet");
       }
     } catch (e) {
-      setMsg(e instanceof Error ? e.message : "Ошибка синхронизации");
+      setMsg(e instanceof Error ? e.message : "Sync error");
     } finally {
       setSyncing(false);
     }
-  }, [settings.telegramChatId, mergeMonitor]);
+  }, [chatId, mergeMonitor]);
 
   React.useEffect(() => {
-    if (!settings.telegramChatId?.trim()) return;
+    if (!chatId) return;
     void syncFromMonitor();
-    const t = setInterval(() => void syncFromMonitor(), 5 * 60_000);
+    const t = setInterval(() => void syncFromMonitor(), 60_000);
     return () => clearInterval(t);
-  }, [settings.telegramChatId, syncFromMonitor]);
+  }, [chatId, syncFromMonitor]);
 
   return (
     <div className="border-t pt-3 text-xs text-muted-foreground">
@@ -49,27 +63,28 @@ export function MonitorSyncCard() {
         onClick={() => setOpen((v) => !v)}
         className="hover:text-foreground"
       >
-        {open ? "▾" : "▸"} Бот @search_jooobbb_bot
+        {open ? "▾" : "▸"} Bot @search_jooobbb_bot
+        {syncing ? " · syncing…" : ""}
       </button>
       {open ? (
         <div className="mt-2 space-y-2">
           <p>
-            Если монитор SearchJob запущен и настроен секрет — после кнопки «✅ Отправила»
-            вакансия сама появится здесь (раз в несколько минут или по кнопке ниже).
-            «⏭ Не буду» → статус «Игнор».
+            After you tap <strong>✅ Отправила</strong> in the bot (with SearchJob monitor
+            running), the job appears here within ~1 minute. <strong>⏭ Не буду</strong> →
+            Ignored.
           </p>
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
             <input
               type="text"
-              value={settings.telegramChatId ?? ""}
+              value={settings.telegramChatId ?? DEFAULT_CHAT}
               onChange={(e) => setSettings({ telegramChatId: e.target.value })}
-              placeholder="Chat ID из SearchJob .env"
+              placeholder="Telegram Chat ID"
               className="flex-1 rounded-md border bg-background px-2 py-1.5 text-xs"
             />
             <button
               type="button"
               onClick={() => void syncFromMonitor()}
-              disabled={syncing || !settings.telegramChatId?.trim()}
+              disabled={syncing || !chatId}
               className="inline-flex items-center gap-1 rounded-md border px-2 py-1.5 hover:bg-muted disabled:opacity-50"
             >
               {syncing ? (
@@ -77,7 +92,7 @@ export function MonitorSyncCard() {
               ) : (
                 <RefreshCw className="size-3" />
               )}
-              Обновить сейчас
+              Sync now
             </button>
           </div>
           {msg ? <p>{msg}</p> : null}
