@@ -9,11 +9,17 @@ const DEFAULT_CHAT =
     ? process.env.NEXT_PUBLIC_TELEGRAM_CHAT_ID.trim()
     : "";
 
-/** Quiet auto-sync from SearchJob bot after “Отправила”. */
+const SYNC_SINCE =
+  typeof process.env.NEXT_PUBLIC_MONITOR_SYNC_SINCE === "string" &&
+  process.env.NEXT_PUBLIC_MONITOR_SYNC_SINCE.trim()
+    ? process.env.NEXT_PUBLIC_MONITOR_SYNC_SINCE.trim()
+    : "2026-09-16";
+
+/** Quiet auto-sync from SearchJob bot after “Отправила” (since SYNC_SINCE only). */
 export function MonitorSyncCard() {
   const settings = useCareerStore((s) => s.jobTrackerSettings);
   const setSettings = useCareerStore((s) => s.setJobTrackerSettings);
-  const mergeMonitor = useCareerStore((s) => s.mergeMonitorApplications);
+  const syncMonitor = useCareerStore((s) => s.syncMonitorApplications);
   const [open, setOpen] = React.useState(false);
   const [syncing, setSyncing] = React.useState(false);
   const [msg, setMsg] = React.useState<string | null>(null);
@@ -36,18 +42,19 @@ export function MonitorSyncCard() {
       const json = await res.json();
       if (!res.ok) throw new Error(json.error ?? "Sync failed");
       const apps = json.applications ?? [];
-      if (apps.length > 0) {
-        mergeMonitor(apps);
-        setMsg(`Synced ${apps.length} from bot`);
-      } else {
-        setMsg("No new items from bot yet");
-      }
+      const since = typeof json.since === "string" ? json.since : SYNC_SINCE;
+      syncMonitor(apps, since);
+      setMsg(
+        apps.length > 0
+          ? `Synced ${apps.length} from bot (since ${since})`
+          : `Cleared older bot imports · tracking since ${since}`
+      );
     } catch (e) {
       setMsg(e instanceof Error ? e.message : "Sync error");
     } finally {
       setSyncing(false);
     }
-  }, [chatId, mergeMonitor]);
+  }, [chatId, syncMonitor]);
 
   React.useEffect(() => {
     if (!chatId) return;
@@ -69,9 +76,9 @@ export function MonitorSyncCard() {
       {open ? (
         <div className="mt-2 space-y-2">
           <p>
-            After you tap <strong>✅ Отправила</strong> in the bot (with SearchJob monitor
-            running), the job appears here within ~1 minute. <strong>⏭ Не буду</strong> →
-            Ignored.
+            After <strong>✅ Отправила</strong> in the bot, the job appears here within ~1
+            minute. Only applications from <strong>{SYNC_SINCE}</strong> onward are kept.
+            Older bot history is ignored.
           </p>
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
             <input

@@ -95,7 +95,8 @@ interface CareerState {
   markFollowUpPrompted: (id: string) => void;
   dismissStale: (id: string) => void;
   mergeTelegramApplications: (incoming: JobApplication[]) => void;
-  mergeMonitorApplications: (incoming: JobApplication[]) => void;
+  /** Replace bot-imported apps (search-job-*) with incoming; drop older than since. */
+  syncMonitorApplications: (incoming: JobApplication[], since?: string) => void;
   setJobTrackerSettings: (patch: Partial<JobTrackerSettings>) => void;
 
   addPosts: (
@@ -274,8 +275,21 @@ export const useCareerStore = create<CareerState>()(
         })),
       mergeTelegramApplications: (incoming) =>
         set((s) => ({ applications: mergeApplicationsByUrl(s.applications, incoming) })),
-      mergeMonitorApplications: (incoming) =>
-        set((s) => ({ applications: mergeApplicationsByUrl(s.applications, incoming) })),
+      syncMonitorApplications: (incoming, since = "2026-09-16") =>
+        set((s) => {
+          const manual = s.applications.filter((a) => {
+            if (a.id.startsWith("search-job-")) return false;
+            const key = (a.appliedAt ?? a.createdAt ?? "").slice(0, 10);
+            return !key || key >= since;
+          });
+          const bot = incoming.filter((a) => {
+            const key = (a.appliedAt ?? a.createdAt ?? "").slice(0, 10);
+            return key >= since;
+          });
+          return {
+            applications: mergeApplicationsByUrl(manual, bot),
+          };
+        }),
       setJobTrackerSettings: (patch) =>
         set((s) => ({
           jobTrackerSettings: { ...s.jobTrackerSettings, ...patch },

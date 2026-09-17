@@ -5,7 +5,7 @@
 > При изменениях в коде обновляй соответствующие разделы.  
 > **После изменений в коде всегда деплой на Vercel production** (см. [§12.5](#125-deployment) и [§13](#13-правила-поддержки-документа)).
 
-**Последнее обновление:** 2026-07-08
+**Последнее обновление:** 2026-09-17
 
 ---
 
@@ -148,7 +148,8 @@ flowchart TB
 | Progress | `/progress` | [src/app/(dashboard)/progress/page.tsx](src/app/(dashboard)/progress/page.tsx) |
 | Daily English | `/english` | [src/app/(dashboard)/english/page.tsx](src/app/(dashboard)/english/page.tsx) |
 | Cooking | `/cooking` | [src/app/(dashboard)/cooking/page.tsx](src/app/(dashboard)/cooking/page.tsx) |
-| Work / Career | `/career` | [src/app/(dashboard)/career/page.tsx](src/app/(dashboard)/career/page.tsx) |
+| Work / Career | `/career` | redirects → `/progress` (legacy) |
+| Applications | `/applications` | [src/app/(dashboard)/applications/page.tsx](src/app/(dashboard)/applications/page.tsx) |
 | Knowledge | `/knowledge` | [src/app/(dashboard)/knowledge/page.tsx](src/app/(dashboard)/knowledge/page.tsx) |
 | Knowledge article | `/knowledge/[slug]` | [src/app/(dashboard)/knowledge/[slug]/page.tsx](src/app/(dashboard)/knowledge/[slug]/page.tsx) |
 
@@ -309,20 +310,29 @@ flowchart TB
 
 ---
 
-### 2.7 `/career` — Work / Career
+### 2.7 `/applications` — Job Applications tracker
 
-- **Компонент:** [CareerWorkspace](src/components/career/CareerWorkspace.tsx)
-- **Stores:** [careerStore](src/stores/careerStore.ts), [memoryStore](src/stores/memoryStore.ts)
+- **Компонент:** [ApplicationsWorkspace](src/components/applications/ApplicationsWorkspace.tsx) → [JobTrackerDashboard](src/components/career/JobTrackerDashboard.tsx)
+- **Store:** [careerStore](src/stores/careerStore.ts) (`applications`, `jobTrackerSettings`)
+- **Навигация:** **Applications** в [nav.ts](src/config/nav.ts)
 
-**Подразделы:**
-- [CVManager](src/components/career/CVManager.tsx) — версии CV (Markdown + file upload).
-- [JobSearch](src/components/career/JobSearch.tsx) — AI job search.
-- [ApplicationsList](src/components/career/ApplicationsList.tsx) — pipeline заявок.
-- [LinkedInSection](src/components/career/LinkedInSection.tsx) — OAuth + post ideas.
+**Функции:**
+- Add by URL via `POST /api/jobs/parse` (hh.ru, LinkedIn jobs/posts, websites; manual fallback)
+- Table / Kanban: Applied → Interview → Rejected → Ignored (+ Offer)
+- Stats widget (Progress-style): daily/weekly bars, conversion funnel
+- Bot sync: [MonitorSyncCard](src/components/career/MonitorSyncCard.tsx)
 
-**API:** `/api/ai/jobs`, `/api/ai/application`, `/api/ai/post`, `/api/auth/linkedin`.
+**SearchJob bot sync (`@search_jooobbb_bot`):**
+- Bot code lives in sibling repo `search_job` (long-polling), not MDP webhook
+- On «✅ Отправила» → `mdp_export.export_vacancy_ids` → `POST /api/jobs/monitor-sync` → Redis `mdp:monitor:{chatId}:applications`
+- Dashboard pulls every 60s via `syncMonitorApplications` (replaces `search-job-*` ids)
+- **Cutoff `MONITOR_SYNC_SINCE=2026-09-16`:** older sheet/DB history is never imported
+- Reset Redis to since-cutoff: `python career/monitor/sync_to_mdp.py` in SearchJob
+- Manual applies (LinkedIn/hh outside bot): paste URL on `/applications`
 
-**OAuth callback:** query params `?linkedin=connected|notconfigured` на `/career`.
+**Env:** `MONITOR_SYNC_SECRET`, `MONITOR_SYNC_SINCE`, `NEXT_PUBLIC_MONITOR_SYNC_SINCE`, `NEXT_PUBLIC_TELEGRAM_CHAT_ID`, Upstash/KV Redis
+
+Legacy `/career` → redirect `/progress`. CV/LinkedIn components remain under `src/components/career/` but are not in the main nav.
 
 ---
 

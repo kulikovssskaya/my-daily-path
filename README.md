@@ -112,6 +112,13 @@ Production: https://my-daily-path-ebon.vercel.app
 - **Cursor agent** — правило `.cursor/rules/auto-deploy-vercel.mdc`: после изменений кода агент деплоит сам.
 - **GitHub** — `.github/workflows/deploy.yml`: каждый `push` в `main` → test + lint + deploy.
 
+### Applications ↔ SearchJob bot
+
+- Page: `/applications`
+- Bot `@search_jooobbb_bot` (repo `search_job`) pushes on «Отправила» to `/api/jobs/monitor-sync`
+- Only decisions **on/after 2026-09-16** (`MONITOR_SYNC_SINCE`) are kept; older bot table history is ignored
+- See [PROJECT_CONTEXT.md §2.7](PROJECT_CONTEXT.md)
+
 Один раз для GitHub Actions:
 
 1. [vercel.com/account/tokens](https://vercel.com/account/tokens) → Create Token  
