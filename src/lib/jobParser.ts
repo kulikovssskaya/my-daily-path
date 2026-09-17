@@ -57,6 +57,80 @@ function firstMeaningfulLine(text: string): string {
   );
 }
 
+const JOB_TITLE_RE =
+  /\b(analyst|engineer|developer|scientist|manager|designer|researcher|специалист|аналитик|инженер|разработчик|менеджер|middle|senior|junior|lead|intern|стаж[её]р)\b/i;
+
+function looksLikeJobTitle(line: string): boolean {
+  if (line.length < 4 || line.length > 140) return false;
+  if (/^#/.test(line)) return false;
+  if (/^(локаци|о компании|чем предстоит|кого мы|требования|обязанност|условия|контакт)/i.test(line)) {
+    return false;
+  }
+  return JOB_TITLE_RE.test(line) || /\b(middle|senior|junior)\+?\b/i.test(line);
+}
+
+/** Pull role + company from LinkedIn post body / og:description. */
+export function extractFromJobPostText(
+  text: string,
+  opts?: { hashtagsTitle?: string; url?: string }
+): { role: string; company: string } {
+  const lines = text
+    .split(/\n/)
+    .map((l) => l.replace(/^[\s📍🔹•\-–—*]+/, "").trim())
+    .filter(Boolean);
+
+  let role =
+    lines.find((l) => looksLikeJobTitle(l)) ??
+    firstMeaningfulLine(text) ??
+    "";
+
+  // "Ищем Data Analyst в компанию X" / "Вакансия: Data Analyst"
+  if (!looksLikeJobTitle(role)) {
+    const m = text.match(
+      /(?:ищем|вакансия|открыта(?:я)? позиция|looking for|hiring)\s*[:\-]?\s*([^\n.]{4,100})/i
+    );
+    if (m?.[1] && looksLikeJobTitle(m[1])) role = m[1].trim();
+  }
+
+  let company = companyFromDescription(text);
+
+  // Role line sometimes embeds company: "Data Analyst @ Acme" / "Analyst — Яндекс"
+  if (!company) {
+    const at = role.match(/^(.+?)\s+(?:@|at|в)\s+([A-ZА-ЯЁ][\w.&'’\- ]{1,50})$/i);
+    const dash = role.match(/^(.+?)\s*[—–-]\s*([A-ZА-ЯЁ][\w.&'’\- ]{1,50})$/);
+    if (at) {
+      role = at[1].trim();
+      company = at[2].trim();
+    } else if (dash && !/middle|senior|junior|igaming|ml/i.test(dash[2])) {
+      role = dash[1].trim();
+      company = dash[2].trim();
+    }
+  }
+
+  // NDA / anonymous company → industry label from text or hashtags
+  if (!company || /nda|конфиденц|не\s*раскрыв/i.test(company)) {
+    const industry =
+      text.match(/\(([^)]*igaming[^)]*)\)/i)?.[1] ??
+      opts?.hashtagsTitle?.match(/#(igaming|fintech|edtech|saas|crypto|cyprus)\b/i)?.[1];
+    if (/nda|конфиденц|не\s*раскрыв|it-?компани/i.test(company) || !company) {
+      company = industry
+        ? `NDA (${industry.replace(/^./, (c) => c.toUpperCase())})`
+        : company && /nda/i.test(company)
+          ? "NDA"
+          : company;
+    }
+  }
+
+  if (!role && opts?.url) {
+    role = roleFromLinkedInUrl(opts.url) ?? "";
+  }
+
+  return {
+    role: role.replace(/\s+/g, " ").trim().slice(0, 120),
+    company: company.replace(/\s+/g, " ").trim().slice(0, 80),
+  };
+}
+
 function isHashtagTitle(title: string): boolean {
   const tags = title.match(/#\w+/g) ?? [];
   const withoutTags = title.replace(/#\w+/g, "").replace(/\|.+$/, "").trim();
@@ -97,22 +171,21 @@ export function roleFromLinkedInUrl(url: string): string | null {
   }
 }
 
-function authorFromLinkedInTitle(title: string): string {
-  const m = title.match(/\|\s*(.+)$/);
-  return m ? m[1].trim() : "";
-}
-
 function companyFromDescription(desc: string): string {
   const patterns = [
-    /(?:о компании|company)\s*[:：]\s*(.+)/i,
+    /(?:о компании|about(?:\s+the)?\s+company)\s*[:：]\s*(.+)/i,
     /(?:компания|company)\s*[:：]\s*(.+)/i,
-    /(?:at|@)\s+([A-ZА-ЯЁ][\w.&'’\- ]{1,60})/,
+    /(?:employer|организация)\s*[:：]\s*(.+)/i,
   ];
   for (const re of patterns) {
     const m = desc.match(re);
     if (m?.[1]) {
       let c = m[1].split(/[.\n|]/)[0].trim();
-      c = c.replace(/\s*\(NDA\).*$/i, "").trim();
+      // Keep short brand; for long blurbs keep first clause before comma if NDA
+      if (c.length > 60) {
+        const nda = c.match(/^(.{5,50}?\(NDA\))/i);
+        c = nda ? nda[1] : c.slice(0, 60).trim();
+      }
       if (c.length > 2 && c.length < 80) return c;
     }
   }
@@ -183,30 +256,25 @@ function parseLinkedIn(html: string, url: string): Partial<ParsedJobPosting> {
     company = atMatch[2].trim();
   }
 
-  // LinkedIn post / share: title is hashtags; real role is first line of description
-  if (!role || isHashtagTitle(ogTitle)) {
-    const fromDesc = firstMeaningfulLine(ogDesc);
-    if (fromDesc) role = fromDesc;
+  // LinkedIn post: hashtag title is useless — parse body text
+  if (!role || isHashtagTitle(ogTitle) || !company) {
+    const fromBody = extractFromJobPostText(ogDesc, {
+      hashtagsTitle: ogTitle,
+      url,
+    });
+    if (!role || isHashtagTitle(ogTitle) || isHashtagTitle(role)) {
+      role = fromBody.role;
+    }
+    if (!company) company = fromBody.company;
   }
 
   if (!role) {
     role = roleFromLinkedInUrl(url) ?? "";
   }
 
-  if (!company) {
-    company = companyFromDescription(ogDesc);
-  }
-
-  // Poster name is not the hiring company — only use as last resort note
-  if (!company) {
-    const author = authorFromLinkedInTitle(ogTitle);
-    if (author && !/^linkedin$/i.test(author)) {
-      company = author;
-    }
-  }
-
-  // Clean role: drop trailing location emoji lines already handled; trim length
+  // Never use post author ( "| Anastasiia B." ) as hiring company for hashtag posts
   role = role.replace(/\s+/g, " ").trim().slice(0, 120);
+  company = company.replace(/\s+/g, " ").trim().slice(0, 80);
 
   return {
     role,

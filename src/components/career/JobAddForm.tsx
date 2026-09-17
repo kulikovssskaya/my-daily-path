@@ -6,22 +6,38 @@ import { useCareerStore } from "@/stores/careerStore";
 import type { ParsedJobPosting } from "@/types";
 import { Button } from "@/components/ui/button";
 
+function looksParsed(data: ParsedJobPosting | undefined): boolean {
+  if (!data?.role) return false;
+  if (data.role === "Job" || data.role === "Вакансия") return false;
+  if (/^#\w/.test(data.role) || (data.role.match(/#/g) ?? []).length >= 2) return false;
+  if (/\|\s*\w/.test(data.role)) return false; // "#tags | Author"
+  return true;
+}
+
 export function JobAddForm() {
   const addFromParsed = useCareerStore((s) => s.addApplicationFromParsed);
   const [url, setUrl] = React.useState("");
   const [company, setCompany] = React.useState("");
   const [role, setRole] = React.useState("");
+  const [description, setDescription] = React.useState("");
+  const [source, setSource] = React.useState<ParsedJobPosting["source"]>("manual");
   const [showFields, setShowFields] = React.useState(false);
   const [loading, setLoading] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
 
-  const saveParsed = (parsed: ParsedJobPosting) => {
-    addFromParsed(parsed, "applied");
+  const reset = () => {
     setUrl("");
     setCompany("");
     setRole("");
+    setDescription("");
+    setSource("manual");
     setShowFields(false);
     setError(null);
+  };
+
+  const saveParsed = (parsed: ParsedJobPosting) => {
+    addFromParsed(parsed, "applied");
+    reset();
   };
 
   const addFromUrl = async () => {
@@ -37,33 +53,32 @@ export function JobAddForm() {
         body: JSON.stringify({ url: trimmed }),
       });
       const json = await res.json();
+      const data = (res.ok ? json.data : json.partial) as ParsedJobPosting | undefined;
 
-      if (
-        res.ok &&
-        json.data?.role &&
-        json.data.role !== "Job" &&
-        json.data.role !== "Вакансия" &&
-        !/^#\w/.test(json.data.role)
-      ) {
-        saveParsed(json.data);
+      // LinkedIn posts: always confirm (role/company extracted from body)
+      const isLinkedInPost = /linkedin\.com\/posts\//i.test(trimmed);
+
+      if (res.ok && looksParsed(data) && !isLinkedInPost) {
+        saveParsed(data!);
         return;
       }
 
-      const partial = (json.data ?? json.partial) as ParsedJobPosting | undefined;
+      setRole(looksParsed(data) ? data!.role : "");
       setCompany(
-        partial?.company &&
-          partial.company !== "Unknown company" &&
-          partial.company !== "Неизвестная компания"
-          ? partial.company
+        data?.company &&
+          data.company !== "Unknown company" &&
+          data.company !== "Неизвестная компания"
+          ? data.company
           : ""
       );
-      setRole(
-        partial?.role && partial.role !== "Job" && partial.role !== "Вакансия"
-          ? partial.role
-          : ""
-      );
+      setDescription(data?.description ?? "");
+      setSource(data?.source ?? "manual");
       setShowFields(true);
-      setError("Couldn’t read the page fully. Confirm the role and company.");
+      setError(
+        looksParsed(data)
+          ? "Check the title and company, then save."
+          : "Couldn’t read the page fully. Enter the role and company."
+      );
     } catch {
       setShowFields(true);
       setError("Couldn’t read the link. Enter the role and company manually.");
@@ -80,9 +95,9 @@ export function JobAddForm() {
     saveParsed({
       role: role.trim(),
       company: company.trim(),
-      description: "",
+      description: description.trim(),
       url: url.trim(),
-      source: "manual",
+      source,
     });
   };
 
@@ -90,6 +105,7 @@ export function JobAddForm() {
     <div className="space-y-2">
       <p className="text-sm text-muted-foreground">
         Applied yourself (hh / LinkedIn / Telegram)? Paste the link and click Add.
+        For LinkedIn posts we read the title and company from the post text.
       </p>
       <div className="flex flex-col gap-2 sm:flex-row">
         <input
@@ -99,7 +115,7 @@ export function JobAddForm() {
           onKeyDown={(e) => {
             if (e.key === "Enter") void addFromUrl();
           }}
-          placeholder="https://hh.ru/vacancy/… or linkedin.com/jobs/…"
+          placeholder="https://hh.ru/vacancy/… or linkedin.com/posts/…"
           className="flex-1 rounded-md border bg-background px-3 py-2.5 text-sm"
         />
         <Button
@@ -120,14 +136,14 @@ export function JobAddForm() {
           <input
             value={role}
             onChange={(e) => setRole(e.target.value)}
-            placeholder="Job title"
-            className="rounded-md border bg-background px-3 py-2 text-sm"
+            placeholder="Job title (from post text)"
+            className="rounded-md border bg-background px-3 py-2 text-sm sm:col-span-2"
           />
           <input
             value={company}
             onChange={(e) => setCompany(e.target.value)}
             placeholder="Company"
-            className="rounded-md border bg-background px-3 py-2 text-sm"
+            className="rounded-md border bg-background px-3 py-2 text-sm sm:col-span-2"
           />
           <Button type="button" size="sm" onClick={saveManual} className="sm:col-span-2 w-fit gap-1.5">
             <Plus className="size-3.5" />

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   detectJobSource,
+  extractFromJobPostText,
   extractUrls,
   parseJobHtml,
   parseManualJobText,
@@ -34,24 +35,35 @@ describe("jobParser", () => {
     expect(parsed.description).toContain("ML team");
   });
 
-  it("parses LinkedIn post: role from description, not hashtag title", () => {
+  it("parses LinkedIn post: role and company from body, not hashtags/author", () => {
     const html = `
       <html><head>
-        <meta property="og:title" content="#вакансия #remote #dataanalyst #ml | Anastasiia B." />
+        <meta property="og:title" content="#вакансия #remote #dataanalyst #ml #igaming #cyprus | Anastasiia B." />
         <meta property="og:description" content="
 
 Data Analyst Middle/Middle+ (iGaming / ML-решения)
 
 📍Локация: Гибрид (Лимассол)
 
-О компании: Растущая продуктовая IT-компания (NDA), на рынке уже больше года." />
+О компании: Растущая продуктовая IT-компания (NDA), на рынке уже больше года. Создает ML-продукты." />
       </head></html>`;
     const url =
       "https://www.linkedin.com/posts/anastasiia-b-b1b17240a_auiaugauqaugautauxauoavl-remote-dataanalyst-activity-7501557684911988736-vir4";
     const parsed = parseJobHtml(html, url);
-    expect(parsed.role).toMatch(/Data Analyst/i);
-    expect(parsed.company).toMatch(/IT-компания|Anastasiia/i);
+    expect(parsed.role).toMatch(/Data Analyst Middle/i);
+    expect(parsed.role).not.toMatch(/#вакансия|Anastasiia/i);
+    expect(parsed.company).toMatch(/NDA/i);
+    expect(parsed.company).not.toMatch(/Anastasiia/i);
     expect(parsed.source).toBe("linkedin");
+  });
+
+  it("extracts role and company from pasted post text", () => {
+    const out = extractFromJobPostText(
+      `Product Analyst\n\nО компании: Acme Corp\nУдалёнка`,
+      { hashtagsTitle: "#вакансия | Someone" }
+    );
+    expect(out.role).toBe("Product Analyst");
+    expect(out.company).toBe("Acme Corp");
   });
 
   it("extracts role hint from LinkedIn post URL slug", () => {
