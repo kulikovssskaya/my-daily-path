@@ -115,7 +115,7 @@ export function JobAddForm() {
           onKeyDown={(e) => {
             if (e.key === "Enter") void addFromUrl();
           }}
-          placeholder="hh.ru / LinkedIn / career.habr.com…"
+          placeholder="https://hh.ru/… · linkedin.com/posts/… · career.habr.com/…"
           className="flex-1 rounded-md border bg-background px-3 py-2.5 text-sm"
         />
         <Button

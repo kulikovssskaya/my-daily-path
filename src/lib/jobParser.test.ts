@@ -3,9 +3,9 @@ import {
   detectJobSource,
   extractFromJobPostText,
   extractUrls,
-  parseHabrCareerTitle,
   parseJobHtml,
   parseManualJobText,
+  parseRussianVacancyTitle,
   roleFromLinkedInUrl,
 } from "@/lib/jobParser";
 
@@ -21,28 +21,28 @@ describe("jobParser", () => {
   it("detects source from URL", () => {
     expect(detectJobSource("https://hh.ru/vacancy/1")).toBe("hh.ru");
     expect(detectJobSource("https://www.linkedin.com/jobs/1")).toBe("linkedin");
-    expect(detectJobSource("https://career.habr.com/vacancies/1000123456")).toBe("habr");
+    expect(detectJobSource("https://career.habr.com/vacancies/100")).toBe("habr");
   });
 
   it("parses Habr Career title into role and company", () => {
-    const { role, company } = parseHabrCareerTitle(
+    const out = parseRussianVacancyTitle(
       "Вакансия «Ищем Data Scientist», удаленно, работа в компании «Top Selection» — Хабр Карьера"
     );
-    expect(role).toBe("Data Scientist");
-    expect(company).toBe("Top Selection");
+    expect(out.role).toBe("Data Scientist");
+    expect(out.company).toBe("Top Selection");
   });
 
-  it("parses Habr Career HTML page", () => {
+  it("parses Habr Career HTML", () => {
     const html = `
       <html><head>
         <title>Вакансия «Ищем Data Scientist», удаленно, работа в компании «Top Selection» — Хабр Карьера</title>
         <meta property="og:title" content="Вакансия «Ищем Data Scientist», удаленно, работа в компании «Top Selection» — Хабр Карьера" />
-        <meta property="og:description" content="Удалённая работа. Python, ML." />
+        <meta property="og:description" content="Удалённая работа. Python, ML, SQL." />
       </head></html>`;
     const parsed = parseJobHtml(html, "https://career.habr.com/vacancies/1000123456");
+    expect(parsed.source).toBe("habr");
     expect(parsed.role).toBe("Data Scientist");
     expect(parsed.company).toBe("Top Selection");
-    expect(parsed.source).toBe("habr");
     expect(parsed.description).toContain("Python");
   });
 
@@ -106,14 +106,5 @@ Data Analyst Middle/Middle+ (iGaming / ML-решения)
     expect(parsed.role).toBe("Backend Developer");
     expect(parsed.company).toBe("Ozon");
     expect(parsed.source).toBe("website");
-  });
-
-  it("parses pasted Habr Career title as manual text", () => {
-    const parsed = parseManualJobText(
-      "Вакансия «Ищем Data Scientist», удаленно, работа в компании «Top Selection» — Хабр Карьера"
-    );
-    expect(parsed.role).toBe("Data Scientist");
-    expect(parsed.company).toBe("Top Selection");
-    expect(parsed.source).toBe("habr");
   });
 });
