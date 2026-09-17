@@ -89,7 +89,7 @@ export type ApplicationStatus =
   | "ignored" // Игнор
   | "offer";
 
-export type JobSource = "hh.ru" | "linkedin" | "telegram" | "website" | "manual";
+export type JobSource = "hh.ru" | "linkedin" | "telegram" | "habr" | "website" | "manual";
 
 export interface JobApplication {
   id: string;

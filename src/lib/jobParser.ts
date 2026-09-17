@@ -1,7 +1,7 @@
 import type { JobSource, ParsedJobPosting } from "@/types";
 
 const URL_RE =
-  /https?:\/\/(?:[\w-]+\.)?(?:hh\.ru|linkedin\.com|t\.me|telegram\.me|www\.)[^\s<>"']+/gi;
+  /https?:\/\/(?:[\w-]+\.)?(?:hh\.ru|linkedin\.com|career\.habr\.com|habr\.com|t\.me|telegram\.me|www\.)[^\s<>"']+/gi;
 
 export function extractUrls(text: string): string[] {
   const matches = text.match(URL_RE) ?? [];
@@ -12,8 +12,51 @@ export function detectJobSource(url: string): JobSource {
   const u = url.toLowerCase();
   if (u.includes("hh.ru")) return "hh.ru";
   if (u.includes("linkedin.com")) return "linkedin";
+  if (u.includes("career.habr.com") || u.includes("habr.com/ru/career") || u.includes("habr.com/career")) {
+    return "habr";
+  }
   if (u.includes("t.me") || u.includes("telegram.me")) return "telegram";
   return "website";
+}
+
+/**
+ * Habr Career title formats, e.g.:
+ * Вакансия «Ищем Data Scientist», удаленно, работа в компании «Top Selection» — Хабр Карьера
+ * Вакансия «Data Scientist» в компании «Acme» — Хабр Карьера
+ */
+export function parseHabrCareerTitle(title: string): { role: string; company: string } {
+  let t = title
+    .replace(/\s*[—–-]\s*Хабр\s*Карьера.*$/i, "")
+    .replace(/\s*\|\s*Хабр\s*Карьера.*$/i, "")
+    .trim();
+
+  let company = "";
+  const companyMatch =
+    t.match(/работа\s+в\s+компании\s+[«"„']([^»"“']+)[»"“']/i) ??
+    t.match(/в\s+компании\s+[«"„']([^»"“']+)[»"“']/i) ??
+    t.match(/компании\s+[«"„']([^»"“']+)[»"“']/i);
+  if (companyMatch) {
+    company = companyMatch[1].trim();
+    t = t.replace(companyMatch[0], "").trim();
+  }
+
+  let role = "";
+  const quoted =
+    t.match(/вакансия\s+[«"„']([^»"“']+)[»"“']/i) ??
+    t.match(/[«"„']([^»"“']+)[»"“']/);
+  if (quoted) {
+    role = quoted[1].trim();
+  } else {
+    role = t.split(",")[0]?.trim() ?? t;
+  }
+
+  // "Ищем Data Scientist" / "Looking for Data Scientist" → keep useful part
+  role = role
+    .replace(/^(ищем|требуется|открыта\s+вакансия|looking\s+for|hiring)\s+/i, "")
+    .replace(/[,\s]+(удал[её]нн\w*|remote|гибрид\w*|офис\w*)\s*$/i, "")
+    .trim();
+
+  return { role, company };
 }
 
 function decodeHtml(s: string): string {
@@ -285,10 +328,52 @@ function parseLinkedIn(html: string, url: string): Partial<ParsedJobPosting> {
   };
 }
 
+function parseHabrCareer(html: string, url: string): Partial<ParsedJobPosting> {
+  const ogTitle = metaContent(html, "og:title") ?? titleTag(html) ?? "";
+  const ogDesc =
+    metaContent(html, "og:description") ?? metaContent(html, "description") ?? "";
+
+  let { role, company } = parseHabrCareerTitle(ogTitle);
+
+  // Fallbacks from page body / meta
+  if (!company) {
+    const fromMeta = metaContent(html, "og:site_name");
+    if (fromMeta && !/хабр|habr/i.test(fromMeta)) company = fromMeta;
+  }
+  if (!company) {
+    const m = html.match(/компани[яи]\s*[«"„']([^»"“']+)[»"“']/i);
+    if (m) company = m[1].trim();
+  }
+  if (!role || role.length < 3) {
+    const fromDesc = firstMeaningfulLine(ogDesc);
+    if (fromDesc) role = fromDesc.replace(/^(ищем|требуется)\s+/i, "").trim();
+  }
+
+  return {
+    role,
+    company,
+    description: ogDesc.replace(/\s+/g, " ").trim().slice(0, 500),
+    url,
+    source: "habr",
+  };
+}
+
 function parseGeneric(html: string, url: string): Partial<ParsedJobPosting> {
   const ogTitle = metaContent(html, "og:title") ?? titleTag(html) ?? "";
   const ogDesc =
     metaContent(html, "og:description") ?? metaContent(html, "description") ?? "";
+
+  // Title pasted/shared might still be Habr format even on a redirect URL
+  if (/хабр\s*карьера|вакансия\s*[«"'„].*компани/i.test(ogTitle)) {
+    const habr = parseHabrCareerTitle(ogTitle);
+    return {
+      role: habr.role,
+      company: habr.company,
+      description: ogDesc.slice(0, 500),
+      url,
+      source: "habr",
+    };
+  }
 
   return {
     role: ogTitle,
@@ -306,7 +391,9 @@ export function parseJobHtml(html: string, url: string): ParsedJobPosting {
       ? parseHhRu(html, url)
       : source === "linkedin"
         ? parseLinkedIn(html, url)
-        : parseGeneric(html, url);
+        : source === "habr"
+          ? parseHabrCareer(html, url)
+          : parseGeneric(html, url);
 
   return {
     company: partial.company?.trim() || "Unknown company",
@@ -353,12 +440,21 @@ export function parseManualJobText(text: string, fallbackUrl?: string): ParsedJo
 
   let role = lines[0] ?? "Job";
   let company = "Unknown company";
-  const description = lines.slice(1).join("\n").slice(0, 500);
+  let description = lines.slice(1).join("\n").slice(0, 500);
+  let source: JobSource = url ? detectJobSource(url) : "manual";
 
-  const dash = role.match(/^(.+?)\s*[—–-]\s*(.+)$/);
-  if (dash) {
-    role = dash[1].trim();
-    company = dash[2].trim();
+  // Full Habr-style title in first line or whole text
+  if (/хабр\s*карьера|вакансия\s*[«"'„].*компани/i.test(text)) {
+    const habr = parseHabrCareerTitle(lines[0] ?? text);
+    if (habr.role) role = habr.role;
+    if (habr.company) company = habr.company;
+    source = "habr";
+  } else {
+    const dash = role.match(/^(.+?)\s*[—–-]\s*(.+)$/);
+    if (dash) {
+      role = dash[1].trim();
+      company = dash[2].trim();
+    }
   }
 
   return {
@@ -366,6 +462,6 @@ export function parseManualJobText(text: string, fallbackUrl?: string): ParsedJo
     role,
     description,
     url,
-    source: url ? detectJobSource(url) : "manual",
+    source,
   };
 }

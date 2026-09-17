@@ -24,6 +24,7 @@ export function mapMonitorSource(firstSource?: string): JobSource {
   const s = (firstSource ?? "").toLowerCase();
   if (s.startsWith("hh.ru") || s.includes("hh.ru")) return "hh.ru";
   if (s.startsWith("linkedin") || s.includes("linkedin")) return "linkedin";
+  if (s.includes("habr")) return "habr";
   if (s.startsWith("telegram") || s.includes("t.me")) return "telegram";
   return "website";
 }
